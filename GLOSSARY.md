@@ -14,6 +14,22 @@ _Avoid_: Toggle, setting, option
 A self-contained capability shipped with the template that a developer can opt into or remove without touching unrelated code.
 _Avoid_: Plugin, add-on, extension
 
+### Architecture
+
+**Action**:
+A single use case the application performs, such as registering a user or enabling two-factor authentication, holding that use case's business logic.
+_Avoid_: Use case, service, interactor, command
+
+### Testing
+
+**Feature test**:
+A test that exercises the whole application through real HTTP requests, without a browser.
+_Avoid_: Integration test, HTTP test
+
+**E2E test**:
+A test that drives a real browser against the running application.
+_Avoid_: Browser test, acceptance test
+
 ### Accounts
 
 **Security setting**:
