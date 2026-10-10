@@ -30,6 +30,10 @@ _Avoid_: Integration test, HTTP test
 A test that drives a real browser against the running application.
 _Avoid_: Browser test, acceptance test
 
+**Architecture test**:
+A test that checks the code's structure against the architecture rules, not its behaviour.
+_Avoid_: Structure test, fitness function
+
 ### Accounts
 
 **Security setting**:

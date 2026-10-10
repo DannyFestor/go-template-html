@@ -15,4 +15,4 @@ The application is sliced by layer (domain, action, request, handler, job, adapt
 
 - An optional module cannot be a single folder: it is its own area in every layer it touches plus one wiring file, reached from core only through consumer-declared interfaces with a no-op adapter.
 - Switching databases means a new adapter plus new migrations and queries; actions, requests and handlers stay untouched.
-- The import rules and banned patterns are enforced by architecture tests, not by convention.
+- The import rules and banned patterns are enforced mechanically, not by convention: go-arch-lint, depguard and architecture tests ([ADR-0007](0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).
