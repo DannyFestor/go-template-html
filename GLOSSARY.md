@@ -18,9 +18,17 @@ _Avoid_: Use case, service, interactor, command
 
 ### Testing
 
+**Unit test**:
+A test of one piece of behaviour in isolation, with its collaborators replaced by test doubles.
+_Avoid_: Small test
+
+**Integration test**:
+A test that exercises one adapter against the real external system it wraps, without going through HTTP.
+_Avoid_: Database test, repository test
+
 **Feature test**:
 A test that exercises the whole application through real HTTP requests, without a browser.
-_Avoid_: Integration test, HTTP test
+_Avoid_: HTTP test, request test
 
 **E2E test**:
 A test that drives a real browser against the running application.
