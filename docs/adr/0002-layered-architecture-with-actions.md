@@ -1,6 +1,6 @@
 # Layered architecture with actions and consumer-declared interfaces
 
-The application is sliced by layer (domain, action, request, handler, job, adapter), each split into the same areas, because authentication and settings are two views onto one user and would not stand alone as feature slices. Business logic lives in actions, one use case each, behind thin handlers; every consumer declares its own small interfaces and every external system or library sits behind an adapter, so the database, session store, mailer and queue can be swapped and every layer can be unit-tested with generated mocks.
+The application is sliced by layer (domain, action, request, handler, job, adapter), each split into the same areas, because authentication and settings are two views onto one user and would not stand alone as feature slices. Business logic lives in actions, one use case each, behind thin handlers; every consumer declares its own small interfaces and every dependency with a plausible substitute (external systems, and libraries implementing a replaceable technique such as password hashing, TOTP or session management) sits behind an adapter, so the database, session store, mailer and queue can be swapped and every layer can be unit-tested with generated mocks. Libraries that are the medium the code is written in (templ for views, test-only tooling such as testify and mockgen) are imported directly, confined by architecture tests to the package that needs them ([ADR-0003](0003-templ-for-server-rendered-views.md)).
 
 ## Considered Options
 
