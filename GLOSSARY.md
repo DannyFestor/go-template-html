@@ -54,6 +54,10 @@ _Avoid_: Sudo mode, re-authentication
 
 ### Realtime
 
+**Realtime module**:
+The optional module that pushes public and private channel broadcasts to pages a visitor has open.
+_Avoid_: Websocket module, broadcasting
+
 **Public channel**:
 A realtime broadcast stream any visitor may subscribe to.
 
