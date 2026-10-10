@@ -6,10 +6,6 @@ A clonable starting point for server-rendered Go web apps, giving each new proje
 
 ### Configuration
 
-**Feature flag**:
-An app-wide switch, set by the developer, that turns an authentication feature on or off for every user.
-_Avoid_: Toggle, setting, option
-
 **Optional module**:
 A self-contained capability shipped with the template that a developer can opt into or remove without touching unrelated code.
 _Avoid_: Plugin, add-on, extension
@@ -36,9 +32,13 @@ _Avoid_: Structure test, fitness function
 
 ### Accounts
 
+**Verified user**:
+A signed-in user who has proven ownership of their current email address by following the link sent to it.
+_Avoid_: Confirmed user, activated user
+
 **Security setting**:
 A choice an individual user makes about their own account's protection, such as enabling two-factor authentication.
-_Avoid_: Preference, feature flag
+_Avoid_: Preference
 
 **Two-factor authentication**:
 A second sign-in step requiring a time-based one-time code from the user's authenticator app.
