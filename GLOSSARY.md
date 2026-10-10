@@ -16,6 +16,24 @@ _Avoid_: Plugin, add-on, extension
 A single use case the application performs, such as registering a user or enabling two-factor authentication, holding that use case's business logic.
 _Avoid_: Use case, service, interactor, command
 
+### Jobs
+
+**Job**:
+A unit of work the application performs in the background, outside the request that asked for it.
+_Avoid_: Task, background job
+
+**Periodic job**:
+A job the application performs on a fixed schedule.
+_Avoid_: Cron job, scheduled task
+
+**Failed job**:
+A job that used up its attempts without succeeding.
+_Avoid_: Dead job, dead letter
+
+**Worker**:
+The process that performs jobs.
+_Avoid_: Consumer, job runner
+
 ### Testing
 
 **Unit test**:
