@@ -1,0 +1,112 @@
+version: "2"
+
+linters:
+  default: all
+  disable:
+    - gocyclo # cyclop measures the same complexity.
+    - lll # golines wraps long lines when formatting.
+    - varnamelen # Short names are idiomatic Go for receivers, loop indices and small scopes.
+    - exhaustruct # Deprecated, superseded by exhaustruct_v5.
+    - gomodguard # Deprecated, superseded by gomodguard_v2.
+    - wsl # Deprecated, superseded by wsl_v5.
+
+  settings:
+    cyclop:
+      max-complexity: 10
+    depguard:
+      rules:
+        core-without-io:
+          files:
+            - "**/internal/domain/**"
+            - "**/internal/action/**"
+            - "**/internal/request/**"
+            - "**/internal/validate/**"
+          deny:
+            - pkg: net/http
+              desc: core layers stay transport-agnostic (ADR-0002)
+            - pkg: database/sql
+              desc: core layers reach storage through adapters (ADR-0002)
+        no-reflect:
+          deny:
+            - pkg: reflect$
+              desc: wiring is explicit, never reflective (ADR-0002)
+    forbidigo:
+      forbid:
+        - pattern: ^context\.WithValue$
+          msg: only adapter/postgres and middleware put values in ctx (ADR-0002)
+      analyze-types: true
+    funlen:
+      lines: 40
+      statements: 25
+    gocognit:
+      min-complexity: 12
+    gocritic:
+      enabled-checks:
+        - commentedOutCode
+    gomodguard_v2:
+      allowed:
+        # An empty allowlist allows every module, so the list starts with the main module.
+        - module: github.com/DannyFestor/go-template-html
+    importas:
+      no-extra-aliases: true
+    interfacebloat:
+      max: 5
+    nestif:
+      min-complexity: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      enable-default-rules: true
+      rules:
+        - name: argument-limit
+          arguments: [5]
+        - name: function-result-limit
+          arguments: [3]
+        # An action file holds <X>, <X>In and <X>Out.
+        - name: max-public-structs
+          arguments: [3]
+        - name: file-length-limit
+          arguments:
+            - max: 300
+              skip-comments: true
+              skip-blank-lines: true
+        - name: import-alias-naming
+        - name: confusing-naming
+        # Comments explain why, so none are mandated.
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+          - dupl
+          - goconst
+          - mnd
+          - maintidx
+      - path: internal/(adapter/postgres|middleware)/
+        linters:
+          - forbidigo
+        text: context\.WithValue
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+    - golines
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+        clothe-returns: true
+        balance-calls: true
+    goimports:
+      local-prefixes:
+        - github.com/DannyFestor/go-template-html
+    golines:
+      max-len: 120
