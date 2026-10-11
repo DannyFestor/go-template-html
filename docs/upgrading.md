@@ -15,6 +15,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/golangci-lint.mod -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@<version>`.
 - **Afterwards**: read the changelog for new linters, which `default: all` switches on, and for deprecations, which need a disable with a reason. Then run `make fmt-check lint`.
 
+## go-arch-lint
+
+- **Pinned in**: `tools/go-arch-lint.mod` and `tools/go-arch-lint.sum`, alone so no other tool moves its dependencies ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).
+- **Bump**: `go get -modfile=tools/go-arch-lint.mod -tool github.com/fe3dback/go-arch-lint@<version>`.
+- **Afterwards**: `make arch`.
+
 ## shellcheck
 
 - **Pinned in**: `tools/shellcheck.version` and `tools/shellcheck.sha256`.

@@ -6,6 +6,7 @@ MAKEFILE_PATH := $(lastword $(MAKEFILE_LIST))
 .DEFAULT_GOAL := help
 
 GOLANGCI_LINT := go tool -modfile=tools/golangci-lint.mod golangci-lint
+GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 SHELL_SCRIPTS := $(shell git ls-files '*.sh')
 
 HOST_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -25,6 +26,9 @@ SHELLCHECK_ARCH := $(subst arm64,aarch64,$(HOST_ARCH))
 SHELLCHECK_ASSET := shellcheck-$(SHELLCHECK_VERSION).$(HOST_OS).$(SHELLCHECK_ARCH).tar.gz
 SHELLCHECK_URL := https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ASSET)
 $(eval $(call pinned-binary,shellcheck,$(SHELLCHECK_URL),shellcheck-$(SHELLCHECK_VERSION)/shellcheck))
+
+tmp:
+	mkdir -p $@
 
 ##@ General
 
@@ -55,6 +59,23 @@ lint: ## Lint Go code with golangci-lint
 .PHONY: lint-shell
 lint-shell: bin/shellcheck ## Lint every tracked shell script with shellcheck
 	bin/shellcheck $(SHELL_SCRIPTS)
+
+.PHONY: arch
+arch: ## Check package dependencies against .go-arch-lint.yml
+	$(GO_ARCH_LINT) check
+
+.PHONY: arch-graph
+arch-graph: | tmp ## Draw the component dependency graph into tmp/arch-graph.svg
+	$(GO_ARCH_LINT) graph --out tmp/arch-graph.svg
+
+.PHONY: check
+check: fmt lint arch test ## Format, lint, check the architecture and run the tests
+
+##@ Test
+
+.PHONY: test
+test: ## Run the unit and architecture tests, no Docker needed
+	go test -race -shuffle=on ./...
 
 ##@ Build
 

@@ -12,5 +12,5 @@ The rules from [ADR-0002](0002-layered-architecture-with-actions.md) are checked
 ## Consequences
 
 - A new layer or library needs an edit to `.go-arch-lint.yml`; a new stdlib restriction needs a depguard rule; a new shape rule or exception needs an edit in `tests/architecture/`.
-- deepScan is off for `bootstrap`, because passing concrete adapters into constructors is that package's job.
+- deepScan is off. It checks the component that receives an injected value, not the one passing it, so switching it off for `bootstrap` alone would still flag every adapter that `bootstrap` passes into an action.
 - A Go release waits until golangci-lint and go-arch-lint support it.

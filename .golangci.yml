@@ -26,6 +26,15 @@ linters:
               desc: core layers stay transport-agnostic (ADR-0002)
             - pkg: database/sql
               desc: core layers reach storage through adapters (ADR-0002)
+        # go-arch-lint reads test and non-test files alike, so it cannot confine test-only libraries.
+        test-only-libraries:
+          files:
+            - $all
+            - "!$test"
+            - "!**/internal/testsupport/**"
+          deny:
+            - pkg: github.com/stretchr/testify
+              desc: test-only, imported by tests and internal/testsupport (ADR-0007)
         no-reflect:
           deny:
             - pkg: reflect$

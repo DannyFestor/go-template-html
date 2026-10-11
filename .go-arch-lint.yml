@@ -1,0 +1,213 @@
+version: 3
+allow:
+  depOnAnyVendor: false
+  # deepScan checks the component receiving an injection, so every adapter bootstrap wires into a consumer
+  # would fail it (ADR-0007).
+  deepScan: false
+  # Components are declared up front for packages the build adds later.
+  ignoreNotFoundComponents: true
+
+excludeFiles:
+  # Fixtures that break the rules on purpose, ignored by the Go toolchain too.
+  - "/testdata/"
+
+vendors:
+  templ:
+    in: github.com/a-h/templ/**
+  pgx:
+    in: github.com/jackc/pgx/v5/**
+  go-redis:
+    in: github.com/redis/go-redis/v9/**
+  goose:
+    in: github.com/pressly/goose/v3/**
+  config:
+    in:
+      - github.com/joho/godotenv/**
+      - github.com/caarlos0/env/**
+  gofakeit:
+    in: github.com/brianvoe/gofakeit/v7/**
+  # depguard keeps it out of non-test files.
+  testify:
+    in: github.com/stretchr/testify/**
+
+commonVendors:
+  - testify
+
+components:
+  cmd:
+    in: cmd/**
+  bootstrap:
+    in: internal/bootstrap/**
+  domain:
+    in: internal/domain/**
+  action:
+    in: internal/action/**
+  request:
+    in: internal/request/**
+  validate:
+    in: internal/validate/**
+  handler:
+    in: internal/handler/**
+  job:
+    in: internal/job/**
+  middleware:
+    in: internal/middleware/**
+  web:
+    in: internal/web/**
+  view:
+    in: internal/view/**
+  route:
+    in: internal/route/**
+  asset:
+    in: internal/asset/**
+  adapter:
+    in: internal/adapter/**
+  adapter-postgres:
+    in: internal/adapter/postgres/**
+  adapter-valkey:
+    in: internal/adapter/valkey/**
+  adapter-goose:
+    in: internal/adapter/goose/**
+  migrations:
+    in: migrations/**
+  migrationsum:
+    in: internal/migrationsum/**
+  seed:
+    in: internal/seed/**
+  factory:
+    in: internal/factory/**
+  testsupport:
+    in: internal/testsupport/**
+  architecture-test:
+    in: tests/architecture/**
+  feature-test:
+    in: tests/feature/**
+  e2e-test:
+    in: tests/e2e/**
+
+deps:
+  cmd:
+    mayDependOn:
+      - bootstrap
+  bootstrap:
+    mayDependOn:
+      - domain
+      - action
+      - request
+      - validate
+      - handler
+      - job
+      - middleware
+      - web
+      - view
+      - route
+      - asset
+      - adapter
+      - adapter-postgres
+      - adapter-valkey
+      - adapter-goose
+      - migrations
+      - seed
+    canUse:
+      - config
+      # One shared client, built here and handed to the Valkey adapters.
+      - go-redis
+  action:
+    mayDependOn:
+      - domain
+  request:
+    mayDependOn:
+      - domain
+      - validate
+  validate:
+    mayDependOn:
+      - domain
+  handler:
+    mayDependOn:
+      - domain
+      - action
+      - request
+      - validate
+      - middleware
+      - web
+      - view
+      - route
+  job:
+    mayDependOn:
+      - domain
+      - action
+  middleware:
+    mayDependOn:
+      - domain
+      - web
+      - route
+  web:
+    mayDependOn:
+      - domain
+      - view
+      - route
+  view:
+    mayDependOn:
+      - view
+      - route
+    canUse:
+      - templ
+  adapter:
+    mayDependOn:
+      - domain
+  adapter-postgres:
+    mayDependOn:
+      - adapter-postgres
+      - domain
+    canUse:
+      - pgx
+  adapter-valkey:
+    mayDependOn:
+      - domain
+    canUse:
+      - go-redis
+  adapter-goose:
+    mayDependOn:
+      - domain
+    canUse:
+      - goose
+  migrations:
+    mayDependOn:
+      - migrationsum
+  migrationsum:
+    mayDependOn:
+      - migrationsum
+  seed:
+    mayDependOn:
+      - domain
+      - action
+      - factory
+  factory:
+    mayDependOn:
+      - domain
+      - adapter-postgres
+    canUse:
+      - gofakeit
+  testsupport:
+    mayDependOn:
+      - testsupport
+      - migrationsum
+    canUse:
+      - pgx
+  architecture-test:
+    mayDependOn:
+      - architecture-test
+  feature-test:
+    mayDependOn:
+      - bootstrap
+      - testsupport
+      - factory
+      - domain
+      - route
+  e2e-test:
+    mayDependOn:
+      - bootstrap
+      - testsupport
+      - factory
+      - domain
+      - route

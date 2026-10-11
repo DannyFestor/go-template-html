@@ -49,6 +49,32 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - The formatters are gofumpt with its extra rules, goimports with the module path as the local prefix, and golines at 120 columns. `lll` is off because golines wraps long lines.
 - The only escape hatch is `//nolint:<linter> // <why>`. nolintlint rejects a directive without a specific linter or a reason.
 
+## go-arch-lint
+
+| | |
+| --- | --- |
+| Version | v1.19.0, alone in `tools/go-arch-lint.mod` |
+| Role | Checks imports between components and confines each third-party library to the components that may use it (`make arch`). Configured in `.go-arch-lint.yml` ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). `make arch-graph` draws the components into `tmp/arch-graph.svg`. |
+
+- It is a whitelist: a Go file outside every component fails the check, and so does a vendor import that no `canUse` allows. The standard library is always allowed, so stdlib bans live in depguard.
+- Any warning fails the check. `--max-warnings` only limits how many are printed, and it rejects 0.
+- A package that matches several components belongs to the most specific one, so `internal/adapter/postgres` is `adapter-postgres`, not `adapter`.
+- A component may not import its own subpackages unless it lists itself in `mayDependOn`.
+- `ignoreNotFoundComponents` is on, so components can be declared before their packages exist.
+- It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` directories are excluded.
+- deepScan is off ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). Turning it back on needs a `golang.org/x/tools` newer than the v0.49 go-arch-lint v1.19.0 requires: that version cannot read Go 1.27 export data, and deepScan then silently checks nothing.
+
+## Architecture tests
+
+| | |
+| --- | --- |
+| Version | stdlib `go/parser` and `go/ast` |
+| Role | Check code shape in `tests/architecture/`: the Action shape, no exported interfaces in `internal/`, no functional options, no `go` statements in the core layers. They run with `make test` and need no Docker. |
+
+- Test files and generated files are skipped.
+- An exception is a named entry in the allowlist inside the test, keyed by the subject the violation prints. An entry that matches no violation fails the test.
+- Each rule runs against a fixture in `tests/architecture/testdata/<rule>/` that proves it catches its violation.
+
 ## shellcheck
 
 | | |
