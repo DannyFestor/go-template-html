@@ -1,0 +1,26 @@
+# Minutes. Holds back versions published too recently to have been checked for compromise.
+minimumReleaseAge: 4320
+
+# `make vp-upgrade` rewrites everything below through `vp migrate`, keeping vite-plus and the Vite every plugin
+# resolves in step with bin/vp. The toolchain packages skip the release age so a new bin/vp can install its own.
+overrides:
+  vite@*: "catalog:"
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vite-plus: 1.1.0
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+minimumReleaseAgeExclude:
+  - vite-plus
+  - "@voidzero-dev/*"
+  - oxlint
+  - "@oxlint/*"
+  - oxlint-tsgolint
+  - "@oxlint-tsgolint/*"
+  - oxfmt
+  - "@oxfmt/*"
+  - vitest
+  - "@vitest/*"

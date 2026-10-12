@@ -4,3 +4,7 @@ tmp/
 node_modules/
 .env*
 !.env.example
+.vite-plus/
+internal/asset/dist/*
+!internal/asset/dist/.gitkeep
+.vitest/
