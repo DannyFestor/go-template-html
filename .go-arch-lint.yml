@@ -10,6 +10,8 @@ allow:
 excludeFiles:
   # Fixtures that break the rules on purpose, ignored by the Go toolchain too.
   - "/testdata/"
+  # npm packages can ship Go files of their own, as flatted does.
+  - "/node_modules/"
 
 vendors:
   templ:

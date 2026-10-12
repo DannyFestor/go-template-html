@@ -33,7 +33,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Role | Tools that aren't Go modules are downloaded into `bin/` by a real Make file target, defined once as the `pinned-binary` macro and implemented by `scripts/install-pinned-binary.sh`. |
 
 - The target detects OS and architecture, downloads with `curl`, refuses to install an asset whose checksum doesn't match, and re-fetches when the version file, the checksum file or the script changes.
-- Only macOS and Linux on arm64 and x86_64 are listed in the checksum files. Other platforms fail with "no checksum".
+- Only macOS and Linux on arm64 and x86_64 are supported. Hand-built checksum files list only those, while a verbatim upstream copy such as `tools/vp.sha256` lists every asset. Other platforms fail with "no checksum" or a missing asset.
 - Make 3.81 compares timestamps to the second, so a version file edited in the same second as the last download doesn't trigger a re-fetch.
 
 ## golangci-lint
@@ -61,7 +61,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - A package that matches several components belongs to the most specific one, so `internal/adapter/postgres` is `adapter-postgres`, not `adapter`.
 - A component may not import its own subpackages unless it lists itself in `mayDependOn`.
 - `ignoreNotFoundComponents` is on, so components can be declared before their packages exist.
-- It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` directories are excluded.
+- It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` and `node_modules/` directories are excluded, because some npm packages ship Go files.
 - deepScan is off ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). Turning it back on needs a `golang.org/x/tools` newer than the v0.49 go-arch-lint v1.19.0 requires: that version cannot read Go 1.27 export data, and deepScan then silently checks nothing.
 
 ## Architecture tests
@@ -69,7 +69,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | stdlib `go/parser` and `go/ast` |
-| Role | Check code shape in `tests/architecture/`: the Action shape, no exported interfaces in `internal/`, no functional options, no `go` statements in the core layers. They run with `make test` and need no Docker. |
+| Role | Check code shape in `tests/architecture/`: the Action shape, no exported interfaces in `internal/`, no functional options, no `go` statements in the core layers. They run with `make test-go` and `make test`, and need no Docker. |
 
 - Test files and generated files are skipped.
 - An exception is a named entry in the allowlist inside the test, keyed by the subject the violation prints. An entry that matches no violation fails the test.
@@ -121,19 +121,61 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - Findings are printed with the secret redacted, as rule, file and line.
 - A false positive outside the allowlisted paths takes a `gitleaks:allow` comment on its line.
 
+## Vite+
+
+| | |
+| --- | --- |
+| Version | `tools/vp.version`, a [pinned binary](#pinned-binaries) in `bin/vp`, and the `vite-plus` catalog entry in `pnpm-workspace.yaml` |
+| Role | Builds the frontend assets (`make vite-build`, `make watch-vite`), formats with oxfmt (`make fmt-js`), lints with oxlint (`make lint-js`), type-checks with `tsc` (`make typecheck-js`) and runs the JS unit tests with Vitest (`make test-js`). Configured in `vite.config.ts` ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)). |
+
+- `tools/vp.sha256` is a verbatim copy of the release's `vp-checksums.txt`, so it also lists the Windows assets.
+- Make runs `bin/vp` with `VP_HOME=.vite-plus`, which keeps Node, pnpm and vp's own shims inside the checkout. Without it, `bin/vp` sets itself up in `~/.vite-plus` and repoints a global vp's shims at itself. Running `bin/vp` by hand needs the same variable.
+- The first run after `bin/vp` is fetched prints shell setup steps. Make never uses the shims, so they can be ignored.
+- The Vite root is the repo root, so Tailwind scans every file git doesn't ignore, `.templ` included.
+- `internal/asset/src/app.ts` is the only entry. It imports `app.css`, so the manifest lists the stylesheet under the entry's `css` key.
+- The build empties `internal/asset/dist/` and writes the manifest to `dist/manifest.json`. A small plugin in `vite.config.ts` writes `.gitkeep` back, so the tracked file never shows as deleted.
+- The modulepreload polyfill is off and `assetsInlineLimit` is 0, so the output holds no inline script and no `data:` URI.
+- oxlint fails on the `correctness`, `suspicious` and `perf` categories, and on functions over the length, complexity, depth and parameter limits golangci-lint uses for Go.
+- oxfmt skips Markdown and TOML, and sorts the keys of `package.json`.
+- Tests import the Vitest API from `vite-plus/test`, not from `vitest`. They run under happy-dom and sit next to the code as `*.test.ts`.
+- `typecheck-js` runs `tsc` from the `typescript` devDependency (TypeScript 7), not oxlint's type-aware mode.
+
+## Node
+
+| | |
+| --- | --- |
+| Version | `.node-version` |
+| Role | Runs the Vite+ toolchain. `bin/vp` downloads that exact release into `.vite-plus/` on first use. |
+
+- Vite+ 1.x needs Node `^22.18.0 || ^24.11.0 || >=26.0.0`.
+- A Node on `PATH` is never used by the Make targets.
+
+## pnpm
+
+| | |
+| --- | --- |
+| Version | The `packageManager` field in `package.json`. `bin/vp` downloads it. |
+| Role | Installs the JS dependencies into `node_modules/` (`make setup`). Configured in `pnpm-workspace.yaml`. |
+
+- Every install uses `--frozen-lockfile`, so a `package.json` change without the matching `pnpm-lock.yaml` fails. Add or remove a dependency with `VP_HOME=.vite-plus bin/vp add -D <package>` or `VP_HOME=.vite-plus bin/vp remove <package>`, which update both.
+- `minimumReleaseAge` holds back versions published less than three days ago. `vp migrate` exempts the Vite+ toolchain packages, so a new `bin/vp` can install its own.
+- Dependency lifecycle scripts are blocked.
+
 ## Hooks
 
 | Hook | Runs | Tool |
 | --- | --- | --- |
 | pre-commit | Refuses commits on `main`. A detached HEAD, as during a rebase, passes. | `make refuse-commit-on-main` |
 | pre-commit | Formats the staged Go files and re-stages them | `make fmt` (golangci-lint) |
+| pre-commit | Formats the staged TypeScript, CSS and JSON files and re-stages them | `make fmt-js` (oxfmt) |
 | pre-commit | Lints the staged shell scripts | `make lint-shell` (shellcheck) |
 | pre-commit | Scans the staged changes for secrets | `make lint-secrets` (gitleaks) |
 | commit-msg | Checks the message is a Conventional Commit | `make lint-commit-msg` (cog) |
 | pre-push | Refuses pushes to `main`, because GitHub doesn't enforce rulesets on private repos of free accounts | `make refuse-push-to-main` |
 | pre-push | Lints the Go packages changed since the merge-base with `origin/main` | `make lint` (golangci-lint) |
 | pre-push | Checks the architecture when Go, `go.mod` or `.go-arch-lint.yml` changed | `make arch` (go-arch-lint) |
-| pre-push | Runs the unit, architecture and tooling tests when a `.go`, `.templ`, `.sql`, `.sh`, `go.mod` or `go.sum` file changed. Tooling tests cover the scripts. | `make test` |
+| pre-push | Runs the unit, architecture and tooling tests when a `.go`, `.templ`, `.sql`, `.sh`, `go.mod` or `go.sum` file changed. Tooling tests cover the scripts. | `make test-go` |
+| pre-push | Type-checks, lints and runs the JS unit tests when a file under `internal/asset/src/`, `package.json`, the lockfile, `pnpm-workspace.yaml`, `.node-version`, `tsconfig.json` or `vite.config.ts` changed | `make typecheck-js`, `make lint-js`, `make test-js` |
 
 pre-commit and pre-push are piped: the first failing job stops the rest. No hook runs integration, feature or e2e tests. CI runs those.
 

@@ -12,6 +12,13 @@ pre-commit:
       glob: "**/*.go"
       run: make -s fmt FILES="{staged_files}"
       stage_fixed: true
+    - name: fmt-js
+      glob:
+        - "**/*.ts"
+        - "**/*.css"
+        - "**/*.json"
+      run: make -s fmt-js FILES="{staged_files}"
+      stage_fixed: true
     - name: lint-shell
       glob: "**/*.sh"
       run: make -s lint-shell FILES="{staged_files}"
@@ -43,7 +50,7 @@ pre-push:
         - go.mod
         - .go-arch-lint.yml
       run: make -s arch
-    - name: test
+    - name: test-go
       files: *changed-files
       glob:
         - "**/*.go"
@@ -52,4 +59,23 @@ pre-push:
         - "**/*.sh"
         - go.mod
         - go.sum
-      run: make -s test
+      run: make -s test-go
+    - name: typecheck-js
+      files: *changed-files
+      glob: &frontend-inputs
+        - internal/asset/src/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - .node-version
+        - tsconfig.json
+        - vite.config.ts
+      run: make -s typecheck-js
+    - name: lint-js
+      files: *changed-files
+      glob: *frontend-inputs
+      run: make -s lint-js
+    - name: test-js
+      files: *changed-files
+      glob: *frontend-inputs
+      run: make -s test-js

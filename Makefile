@@ -29,15 +29,22 @@ SHELLCHECK_ASSET := shellcheck-$(SHELLCHECK_VERSION).$(HOST_OS).$(HOST_ARCH_GNU)
 SHELLCHECK_URL := https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ASSET)
 $(eval $(call pinned-binary,shellcheck,$(SHELLCHECK_URL),shellcheck-$(SHELLCHECK_VERSION)/shellcheck))
 
+RUST_TARGET_VENDOR_OS_darwin := apple-darwin
+RUST_TARGET_VENDOR_OS_linux := unknown-linux-gnu
+RUST_TARGET := $(HOST_ARCH_GNU)-$(RUST_TARGET_VENDOR_OS_$(HOST_OS))
+
 COG_VERSION := $(call pinned-version,cog)
-# Upstream ships Linux x86_64 only as musl and Linux aarch64 only as gnu.
-COG_TARGET_darwin_aarch64 := aarch64-apple-darwin
-COG_TARGET_darwin_x86_64 := x86_64-apple-darwin
-COG_TARGET_linux_aarch64 := aarch64-unknown-linux-gnu
-COG_TARGET_linux_x86_64 := x86_64-unknown-linux-musl
-COG_TARGET := $(COG_TARGET_$(HOST_OS)_$(HOST_ARCH_GNU))
+# Upstream ships Linux x86_64 only as musl.
+COG_TARGET := $(subst x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl,$(RUST_TARGET))
 COG_URL := https://github.com/cocogitto/cocogitto/releases/download/$(COG_VERSION)/cocogitto-$(COG_VERSION)-$(COG_TARGET).tar.gz
 $(eval $(call pinned-binary,cog,$(COG_URL),$(COG_TARGET)/cog))
+
+VP_REPO := voidzero-dev/vite-plus
+# Deferred to the recipe, because `vp-upgrade` rewrites tools/vp.version after this file was read.
+VP_URL = https://github.com/$(VP_REPO)/releases/download/$(call pinned-version,vp)/vp-$(RUST_TARGET).tar.gz
+$(eval $(call pinned-binary,vp,$$(VP_URL),vp))
+# Without its own home, bin/vp sets itself up in ~/.vite-plus and repoints a global vp's shims at itself.
+VP := VP_HOME=$(CURDIR)/.vite-plus bin/vp
 
 PROTECTED_REF := refs/heads/main
 
@@ -66,11 +73,15 @@ help: ## Show this help
 ##@ Setup
 
 .PHONY: setup
-setup: go-mod-download hooks-install ## Download Go module dependencies and install the git hooks
+setup: go-mod-download js-install hooks-install ## Download the Go and JS dependencies and install the git hooks
 
 .PHONY: go-mod-download
 go-mod-download:
 	go mod download
+
+.PHONY: js-install
+js-install: bin/vp
+	$(VP) install --frozen-lockfile
 
 .PHONY: hooks-install
 hooks-install:
@@ -89,6 +100,18 @@ fmt-check: ## Fail if Go code, or only FILES, is not formatted
 .PHONY: lint
 lint: ## Lint Go code with golangci-lint, or only the packages holding FILES
 	$(if $(LINT_TARGETS),$(GOLANGCI_LINT) run $(LINT_TARGETS))
+
+.PHONY: fmt-js
+fmt-js: bin/vp ## Format TypeScript, CSS, JSON and YAML with oxfmt, or only FILES
+	$(VP) fmt $(FILES)
+
+.PHONY: lint-js
+lint-js: bin/vp ## Lint TypeScript with oxlint
+	$(VP) lint
+
+.PHONY: typecheck-js
+typecheck-js: bin/vp ## Type-check TypeScript with tsc
+	$(VP) exec tsc --noEmit
 
 .PHONY: lint-shell
 lint-shell: bin/shellcheck ## Lint every tracked shell script with shellcheck, or only FILES
@@ -111,16 +134,49 @@ arch-graph: | tmp ## Draw the component dependency graph into tmp/arch-graph.svg
 	$(GO_ARCH_LINT) graph --out tmp/arch-graph.svg
 
 .PHONY: check
-check: fmt lint arch test ## Format, lint, check the architecture and run the tests
+check: fmt fmt-js lint lint-js typecheck-js arch test ## Format, lint, type-check, check the architecture and run the tests
 
 ##@ Test
 
 .PHONY: test
-test: ## Run the unit, architecture and tooling tests, no Docker needed
+test: test-go test-js ## Run the Go and JS tests that need no Docker
+
+.PHONY: test-go
+test-go: ## Run the Go unit, architecture and tooling tests
 	go test -race -shuffle=on ./...
+
+.PHONY: test-js
+test-js: bin/vp ## Run the JS unit tests with Vitest
+	$(VP) test
 
 ##@ Build
 
 .PHONY: build
 build: ## Build cmd/web into bin/
 	go build -o bin/web ./cmd/web
+
+.PHONY: vite-build
+vite-build: bin/vp ## Build the frontend assets into internal/asset/dist/
+	$(VP) build
+
+.PHONY: watch-vite
+watch-vite: bin/vp ## Rebuild the frontend assets into internal/asset/dist/ on every change
+	$(VP) build --watch
+
+##@ Upgrade
+
+.PHONY: vp-upgrade
+vp-upgrade: vp-pin-latest vite-plus-pin vp-migrate ## Bump bin/vp, vite-plus and its vite override to the latest release
+
+.PHONY: vp-pin-latest
+vp-pin-latest:
+	scripts/pin-latest-release.sh $(VP_REPO) vp-checksums.txt tools/vp.version tools/vp.sha256
+
+# `vp migrate` runs the project's own vite-plus, which only aligns the rest once it is on bin/vp's version.
+.PHONY: vite-plus-pin
+vite-plus-pin: bin/vp
+	$(VP) add -D vite-plus@$(patsubst v%,%,$(call pinned-version,vp))
+
+.PHONY: vp-migrate
+vp-migrate: bin/vp
+	$(VP) migrate

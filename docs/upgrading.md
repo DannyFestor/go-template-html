@@ -58,3 +58,21 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Pinned in**: `tools/gitleaks.mod` and `tools/gitleaks.sum`, alone so its dependencies stay out of the other tools' graphs.
 - **Bump**: `go get -modfile=tools/gitleaks.mod -tool github.com/zricethezav/gitleaks/v8@<version>`.
 - **Afterwards**: read the changelog for new default rules, then stage a change and run `make lint-secrets`.
+
+## Vite+
+
+- **Pinned in**: `tools/vp.version` and `tools/vp.sha256` for `bin/vp`, and the `vite-plus` catalog entry and `vite` override in `pnpm-workspace.yaml` for the project ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)).
+- **Bump**: `make vp-upgrade`. It writes the latest release tag and its `vp-checksums.txt` into `tools/`, fetches the new `bin/vp`, moves the `vite-plus` devDependency to the same release, then runs `vp migrate`, which aligns the `vite` override with it and reinstalls.
+- **Afterwards**: read the release notes, because newer oxlint and oxfmt versions can flag code that passed before. Then run `make fmt-js lint-js typecheck-js test-js vite-build`.
+
+## Node
+
+- **Pinned in**: `.node-version`.
+- **Bump**: write a newer LTS release into `.node-version` by hand, one that Vite+ supports.
+- **Afterwards**: `make test-js vite-build`, which makes `bin/vp` download the new Node.
+
+## pnpm
+
+- **Pinned in**: the `packageManager` field of `package.json`.
+- **Bump**: write the new version into `packageManager` by hand. `vp migrate` leaves it alone.
+- **Afterwards**: `make setup`, which makes `bin/vp` download that pnpm and install from the unchanged lockfile.
