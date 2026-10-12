@@ -33,3 +33,28 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
   ```
 
 - **Afterwards**: `make lint-shell`, which re-fetches `bin/shellcheck`.
+
+## lefthook
+
+- **Pinned in**: `tools/tools.mod` and `tools/tools.sum`, shared with the other tools that are not sensitive to version bumps ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)).
+- **Bump**: `go get -modfile=tools/tools.mod -tool github.com/evilmartians/lefthook/v2@<version>`. A new major version also changes the module path.
+- **Afterwards**: `make setup`, which reinstalls the hooks, then make a commit on a branch to see them run.
+
+## cog
+
+- **Pinned in**: `tools/cog.version` and `tools/cog.sha256`.
+- **Bump**: write the new tag to `tools/cog.version`. Upstream publishes no checksum file, so rebuild `tools/cog.sha256` from the asset digests GitHub records:
+
+  ```sh
+  gh api repos/cocogitto/cocogitto/releases/tags/$(cat tools/cog.version) \
+    --jq '.assets[] | select(.name | test("-(aarch64-apple-darwin|x86_64-apple-darwin|aarch64-unknown-linux-gnu|x86_64-unknown-linux-musl)\\.tar\\.gz$")) | "\(.digest | ltrimstr("sha256:"))  \(.name)"' \
+    > tools/cog.sha256
+  ```
+
+- **Afterwards**: `make bin/cog`, then commit on a branch to see the commit-msg hook run.
+
+## gitleaks
+
+- **Pinned in**: `tools/gitleaks.mod` and `tools/gitleaks.sum`, alone so its dependencies stay out of the other tools' graphs.
+- **Bump**: `go get -modfile=tools/gitleaks.mod -tool github.com/zricethezav/gitleaks/v8@<version>`.
+- **Afterwards**: read the changelog for new default rules, then stage a change and run `make lint-secrets`.

@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures hold fake secrets, such as TOTP seeds, on purpose."
+paths = [
+  '''_test\.go$''',
+  '''(^|/)testdata/''',
+]

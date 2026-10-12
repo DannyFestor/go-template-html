@@ -1,0 +1,54 @@
+# Every job calls a Make target, so hooks need nothing on PATH beyond the system tools and Go.
+# The installed git hooks otherwise look for whichever lefthook is on PATH, not the pinned one.
+lefthook: go tool -modfile=tools/tools.mod lefthook
+glob_matcher: doublestar
+
+pre-commit:
+  piped: true
+  jobs:
+    - name: refuse-main
+      run: make -s refuse-commit-on-main
+    - name: fmt-go
+      glob: "**/*.go"
+      run: make -s fmt FILES="{staged_files}"
+      stage_fixed: true
+    - name: lint-shell
+      glob: "**/*.sh"
+      run: make -s lint-shell FILES="{staged_files}"
+    - name: lint-secrets
+      run: make -s lint-secrets
+
+commit-msg:
+  jobs:
+    - name: lint-commit-msg
+      run: make -s lint-commit-msg COMMIT_MSG_FILE="{1}"
+
+pre-push:
+  piped: true
+  jobs:
+    # GitHub does not enforce rulesets on private repos of free accounts.
+    - name: refuse-main
+      run: make -s refuse-push-to-main
+      use_stdin: true
+    - name: lint-go
+      files: &changed-files scripts/changed-files.sh
+      glob: "**/*.go"
+      exclude:
+        - "**/testdata/**"
+      run: make -s lint FILES="{files}"
+    - name: arch
+      files: *changed-files
+      glob:
+        - "**/*.go"
+        - go.mod
+        - .go-arch-lint.yml
+      run: make -s arch
+    - name: test
+      files: *changed-files
+      glob:
+        - "**/*.go"
+        - "**/*.templ"
+        - "**/*.sql"
+        - go.mod
+        - go.sum
+      run: make -s test

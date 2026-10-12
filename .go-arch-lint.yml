@@ -80,6 +80,8 @@ components:
     in: internal/testsupport/**
   architecture-test:
     in: tests/architecture/**
+  hooks-test:
+    in: tests/hooks/**
   feature-test:
     in: tests/feature/**
   e2e-test:

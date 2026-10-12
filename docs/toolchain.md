@@ -80,14 +80,62 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | `tools/shellcheck.version`, a [pinned binary](#pinned-binaries) in `bin/shellcheck` |
-| Role | Lints every tracked `*.sh` file (`make lint-shell`). |
+| Role | Lints every tracked `*.sh` file (`make lint-shell`), following `source`d files (`-x`). pre-commit lints only the staged scripts. |
 
 - Untracked scripts and scripts without the `.sh` extension are not linted.
+
+## lefthook
+
+| | |
+| --- | --- |
+| Version | v2.2.1, in `tools/tools.mod` ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)) |
+| Role | Runs the git hooks configured in `lefthook.yml`. `make setup` installs them into `.git/hooks`. |
+
+- Every job calls a Make target, so the hooks need nothing on `PATH` beyond the system tools and Go.
+- The `lefthook` key in `lefthook.yml` makes the installed hooks run the pinned version through `go tool`. Without it they would use whichever lefthook is on `PATH`.
+- `glob_matcher: doublestar` makes `**/*.go` match files at the root too. The default matcher needs at least one directory.
+- pre-push jobs list their files with `scripts/changed-files.sh` (changed since the merge-base with `origin/main`) and filter them with their own `glob`. A job is skipped when no file matches. A new job only declares its globs.
+- Without `origin/main`, as on the first push to an empty remote, the helper lists every tracked file, so every job runs.
+- `LEFTHOOK=0 git commit …` skips the hooks. `LEFTHOOK_VERBOSE=1` prints each command a job runs.
+- Hooks export `GIT_DIR` and friends. A test that shells out to git strips `GIT_*` from its environment and works in `t.TempDir()`, as `tests/hooks/` does.
+
+## cog
+
+| | |
+| --- | --- |
+| Version | `tools/cog.version`, a [pinned binary](#pinned-binaries) in `bin/cog` |
+| Role | Checks that commit messages are Conventional Commits (`make lint-commit-msg COMMIT_MSG_FILE=<path>`). |
+
+- It uses the default commit types. There is no `cog.toml`.
+- `fixup!` and merge commits pass, and `#` comment lines in the message file are ignored.
+- Linux x86_64 gets the musl build and Linux aarch64 the gnu build, because those are the only Linux builds upstream ships for each.
+
+## gitleaks
+
+| | |
+| --- | --- |
+| Version | v8.30.1, alone in `tools/gitleaks.mod` |
+| Role | Scans the staged changes for secrets (`make lint-secrets`). Configured in `.gitleaks.toml`. |
+
+- `.gitleaks.toml` extends the default rules and allowlists test fixtures by path (`*_test.go`, `testdata/`), so a TOTP seed in a test passes.
+- Findings are printed with the secret redacted, as rule, file and line.
+- A false positive outside the allowlisted paths takes a `gitleaks:allow` comment on its line.
 
 ## Hooks
 
 | Hook | Runs | Tool |
 | --- | --- | --- |
+| pre-commit | Refuses commits on `main`. A detached HEAD, as during a rebase, passes. | `make refuse-commit-on-main` |
+| pre-commit | Formats the staged Go files and re-stages them | `make fmt` (golangci-lint) |
+| pre-commit | Lints the staged shell scripts | `make lint-shell` (shellcheck) |
+| pre-commit | Scans the staged changes for secrets | `make lint-secrets` (gitleaks) |
+| commit-msg | Checks the message is a Conventional Commit | `make lint-commit-msg` (cog) |
+| pre-push | Refuses pushes to `main`, because GitHub doesn't enforce rulesets on private repos of free accounts | `make refuse-push-to-main` |
+| pre-push | Lints the Go packages changed since the merge-base with `origin/main` | `make lint` (golangci-lint) |
+| pre-push | Checks the architecture when Go, `go.mod` or `.go-arch-lint.yml` changed | `make arch` (go-arch-lint) |
+| pre-push | Runs the unit and architecture tests when a `.go`, `.templ`, `.sql`, `go.mod` or `go.sum` file changed | `make test` |
+
+pre-commit and pre-push are piped: the first failing job stops the rest. No hook runs integration, feature or e2e tests. CI runs those.
 
 ## CI
 
