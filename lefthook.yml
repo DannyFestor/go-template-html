@@ -49,6 +49,7 @@ pre-push:
         - "**/*.go"
         - "**/*.templ"
         - "**/*.sql"
+        - "**/*.sh"
         - go.mod
         - go.sum
       run: make -s test
