@@ -133,7 +133,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | pre-push | Refuses pushes to `main`, because GitHub doesn't enforce rulesets on private repos of free accounts | `make refuse-push-to-main` |
 | pre-push | Lints the Go packages changed since the merge-base with `origin/main` | `make lint` (golangci-lint) |
 | pre-push | Checks the architecture when Go, `go.mod` or `.go-arch-lint.yml` changed | `make arch` (go-arch-lint) |
-| pre-push | Runs the unit and architecture tests when a `.go`, `.templ`, `.sql`, `.sh`, `go.mod` or `go.sum` file changed. `tests/hooks/` covers the scripts. | `make test` |
+| pre-push | Runs the unit, architecture and tooling tests when a `.go`, `.templ`, `.sql`, `.sh`, `go.mod` or `go.sum` file changed. Tooling tests cover the scripts. | `make test` |
 
 pre-commit and pre-push are piped: the first failing job stops the rest. No hook runs integration, feature or e2e tests. CI runs those.
 

@@ -17,3 +17,4 @@ Go tests come in four kinds, and each kind's Make target selects it by build tag
 - `paralleltest` is switched back on. A test that can't run in parallel needs `//nolint:paralleltest // <why>`.
 - Passing a tag re-runs the untagged tests in the selected paths as well. Those are fast, so this is accepted rather than worked around.
 - A fifth kind, **JS unit**, runs Vitest with happy-dom on `*.test.ts` files that sit next to the TypeScript components ([ADR-0013](0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)). `make test` runs both Go unit and JS unit tests, and neither needs Docker. JS coverage is reported separately and does not count toward the merged Go coverage.
+- A sixth kind, **tooling**, runs the developer tooling, such as the git hook scripts, against throwaway git repositories in `tests/hooks/`. Tooling tests are untagged, need no Docker and run under `make test`.

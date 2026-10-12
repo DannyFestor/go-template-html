@@ -116,7 +116,7 @@ check: fmt lint arch test ## Format, lint, check the architecture and run the te
 ##@ Test
 
 .PHONY: test
-test: ## Run the unit and architecture tests, no Docker needed
+test: ## Run the unit, architecture and tooling tests, no Docker needed
 	go test -race -shuffle=on ./...
 
 ##@ Build
