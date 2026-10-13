@@ -13,7 +13,13 @@ GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
-SHELL_SCRIPTS := $(shell git ls-files '*.sh')
+# Deferred, because the image's build context has no .git for git ls-files to read.
+SHELL_SCRIPTS = $(shell git ls-files '*.sh')
+
+# The image's build context has no .git either, so `image` passes the version in as a build arg.
+VERSION ?= $(shell git describe --always --dirty)
+GO_LDFLAGS = -s -w -X github.com/DannyFestor/go-template-html/internal/buildinfo.Version=$(VERSION)
+IMAGE_NAME := go-template-html
 
 HOST_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 HOST_ARCH := $(shell uname -m)
@@ -229,8 +235,11 @@ test-js: bin/vp ## Run the JS unit tests with Vitest
 ##@ Build
 
 .PHONY: build
-build: ## Build cmd/web into bin/
-	go build -o bin/web ./cmd/web
+build: js-install vite-build build-web ## Build the frontend assets, then cmd/web into bin/ stamped with VERSION
+
+.PHONY: build-web
+build-web:
+	CGO_ENABLED=0 go build -trimpath -ldflags='$(GO_LDFLAGS)' -o bin/web ./cmd/web
 
 .PHONY: build-packages
 build-packages:
@@ -243,6 +252,10 @@ vite-build: bin/vp ## Build the frontend assets into internal/asset/dist/
 .PHONY: watch-vite
 watch-vite: bin/vp ## Rebuild the frontend assets into internal/asset/dist/ on every change
 	$(VP) build --watch
+
+.PHONY: image
+image: ## Build the production image for the host platform, tagged IMAGE_NAME:VERSION and IMAGE_NAME:latest
+	docker build --build-arg VERSION=$(VERSION) --tag $(IMAGE_NAME):$(VERSION) --tag $(IMAGE_NAME):latest .
 
 ##@ Upgrade
 

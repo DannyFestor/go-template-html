@@ -1,0 +1,12 @@
+# The paths .gitignore lists, plus .git, so the image builds from what a fresh clone holds.
+.git
+**/.DS_Store
+bin/
+tmp/
+node_modules/
+.env*
+!.env.example
+.vite-plus/
+internal/asset/dist/*
+!internal/asset/dist/.gitkeep
+.vitest/
