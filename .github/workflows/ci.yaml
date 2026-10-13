@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Every job calls only Make targets, so CI runs the same commands as the hooks and a developer (ADR-0010).
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - &checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - &setup-go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # setup-go's cache key is the same in every job, so the job that builds least would save it for all of them.
+      - &cache-go
+        name: Cache Go modules and builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*.sum', 'tools/agenthook/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ github.job }}-
+      - &cache-pinned-binaries
+        name: Cache the pinned binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin/
+          key: bin-${{ runner.os }}-${{ hashFiles('tools/*.version', 'tools/*.sha256', 'scripts/install-pinned-binary.sh') }}
+      - &cache-pnpm-store
+        name: Cache the pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+      # Keyed on the commit, so each run saves a fresh cache, and a pull request starts from the newest on main.
+      - name: Cache golangci-lint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-${{ runner.os }}-${{ hashFiles('tools/golangci-lint.sum') }}-${{ github.sha }}
+          restore-keys: golangci-lint-${{ runner.os }}-${{ hashFiles('tools/golangci-lint.sum') }}-
+      - &js-install
+        run: make js-install
+      - run: make fmt-check
+      - run: make lint
+      - run: make lint-agenthook
+      - run: make lint-js
+      - run: make typecheck-js
+      - run: make lint-shell
+      - run: make arch
+
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - *checkout
+      - *setup-go
+      - *cache-go
+      - run: make generate
+      - run: make drift-check
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - *checkout
+      - *setup-go
+      - *cache-go
+      - *cache-pinned-binaries
+      - *cache-pnpm-store
+      - *js-install
+      - run: make test
+
+  vuln:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - *checkout
+      - *setup-go
+      - *cache-go
+      - run: make vuln
+      - run: make vuln-agenthook

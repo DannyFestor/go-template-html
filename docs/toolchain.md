@@ -34,6 +34,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Role | Tools that aren't Go modules are downloaded into `bin/` by a real Make file target, defined once as the `pinned-binary` macro and implemented by `scripts/install-pinned-binary.sh`. |
 
 - The target detects OS and architecture, downloads with `curl`, refuses to install an asset whose checksum doesn't match, and re-fetches when the version file, the checksum file or the script changes.
+- Each binary gets a `bin/<tool>.pin` with the asset URL and its pinned checksum. When Make asks for a binary whose pin still matches, the script only refreshes its timestamp. That is what makes CI's restored `bin/` cache useful, because a checkout leaves the version and checksum files newer than every cached binary.
 - Only macOS and Linux on arm64 and x86_64 are supported. Hand-built checksum files list only those, while a verbatim upstream copy such as `tools/vp.sha256` lists every asset. Other platforms fail with "no checksum" or a missing asset.
 - Make 3.81 compares timestamps to the second, so a version file edited in the same second as the last download doesn't trigger a re-fetch.
 
@@ -42,7 +43,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | v2.14.0, alone in `tools/golangci-lint.mod` |
-| Role | Lints (`make lint`) and formats (`make fmt`, `make fmt-check`) Go code. Configured in `.golangci.yml` ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). |
+| Role | Lints (`make lint`) and formats (`make fmt`, `make fmt-check-go`) Go code. Configured in `.golangci.yml` ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). |
 
 - It runs through `go tool -modfile=tools/golangci-lint.mod`, so the project toolchain compiles it and it never fails with "built with an older Go". The first run compiles it and is slow.
 - `linters.default: all` turns on every linter, including deprecated ones that have a successor. Each disabled linter has its reason next to it.
@@ -106,10 +107,10 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | `tools/cog.version`, a [pinned binary](#pinned-binaries) in `bin/cog` |
-| Role | Checks that commit messages are Conventional Commits (`make lint-commit-msg COMMIT_MSG_FILE=<path>`). |
+| Role | Checks that commit messages (`make lint-commit-msg COMMIT_MSG_FILE=<path>`) and pull request titles (`make lint-pr-title PR_TITLE=<title>`) are Conventional Commits. |
 
 - It uses the default commit types. There is no `cog.toml`.
-- `fixup!` and merge commits pass, and `#` comment lines in the message file are ignored.
+- In commit messages, `fixup!` and merge commits pass, and `#` comment lines in the message file are ignored. A pull request title passes neither way, because the squash merge makes it the commit on `main`.
 - Linux x86_64 gets the musl build and Linux aarch64 the gnu build, because those are the only Linux builds upstream ships for each.
 
 ## gitleaks
@@ -123,12 +124,22 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - Findings are printed with the secret redacted, as rule, file and line.
 - A false positive outside the allowlisted paths takes a `gitleaks:allow` comment on its line.
 
+## govulncheck
+
+| | |
+| --- | --- |
+| Version | v1.9.0, alone in `tools/govulncheck.mod` |
+| Role | Reports known vulnerabilities that the code in `GO_MODULE` can reach, in its dependencies and the standard library (`make vuln`). CI runs it on both modules. No hook runs it. |
+
+- It only reports a vulnerability when the code calls the affected function. An imported but unreached one is listed as informational and does not fail the check.
+- It reads the vulnerability database at vuln.go.dev, so it needs the network. A new advisory can fail CI on a branch whose code did not change.
+
 ## Vite+
 
 | | |
 | --- | --- |
 | Version | `tools/vp.version`, a [pinned binary](#pinned-binaries) in `bin/vp`, and the `vite-plus` catalog entry in `pnpm-workspace.yaml` |
-| Role | Builds the frontend assets (`make vite-build`, `make watch-vite`), formats with oxfmt (`make fmt-js`), lints with oxlint (`make lint-js`), type-checks with `tsc` (`make typecheck-js`) and runs the JS unit tests with Vitest (`make test-js`). Configured in `vite.config.ts` ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)). |
+| Role | Builds the frontend assets (`make vite-build`, `make watch-vite`), formats with oxfmt (`make fmt-js`, `make fmt-check-js`), lints with oxlint (`make lint-js`), type-checks with `tsc` (`make typecheck-js`) and runs the JS unit tests with Vitest (`make test-js`). Configured in `vite.config.ts` ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)). |
 
 - `tools/vp.sha256` is a verbatim copy of the release's `vp-checksums.txt`, so it also lists the Windows assets.
 - Make runs `bin/vp` with `VP_HOME=.vite-plus`, which keeps Node, pnpm and vp's own shims inside the checkout. Without it, `bin/vp` sets itself up in `~/.vite-plus` and repoints a global vp's shims at itself. Running `bin/vp` by hand needs the same variable.
@@ -218,3 +229,19 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 
 | Job | Runs |
 | --- | --- |
+| `lint` | `make fmt-check`, `lint`, `lint-agenthook`, `lint-js`, `typecheck-js`, `lint-shell` and `arch` |
+| `generate` | `make generate`, then `make drift-check`, which fails if that changed a tracked file or created a new one |
+| `test` | `make test` |
+| `vuln` | `make vuln` and `make vuln-agenthook` |
+| `pr-title` | `make lint-pr-title`, which runs `cog verify` on the pull request's title |
+
+- `.github/workflows/ci.yaml` runs the first four jobs in parallel on pull requests and on pushes to `main`. A newer run cancels an older one on the same ref.
+- `pr-title` has its own workflow, `.github/workflows/pr-title.yml`, which also runs when a pull request is edited. Editing a title re-runs only that check.
+- Every job runs on `ubuntu-24.04` with `permissions: contents: read`, a checkout without persisted credentials and a timeout: 10 minutes, 20 for `test` and 5 for `pr-title`.
+- Every job calls only Make targets ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)), apart from the `pr-title` step that gives `cog` a git identity. Steps that several jobs share are written once as YAML anchors.
+- Actions are pinned by full commit SHA, with the version in a trailing comment. Nothing bumps them automatically ([upgrading.md](upgrading.md#github-actions)).
+- Go comes from `actions/setup-go`, which reads the `toolchain` line of `go.mod`. Node comes only from `bin/vp` through `make js-install`, so `.node-version` stays its only pin.
+- Caches: the Go module and build cache, one per job and keyed on `go.mod`, `go.sum`, `tools/*.sum` and `tools/agenthook/go.sum`, because the jobs build different packages and tools while setup-go's own cache would share one key between them; `bin/`, keyed on `tools/*.version`, the checksum files and `scripts/install-pinned-binary.sh`; the pnpm store, keyed on `pnpm-lock.yaml`; and the golangci-lint cache, keyed on `tools/golangci-lint.sum` plus the commit, so a pull request restores the newest one, which includes `main`'s.
+- The title reaches `cog` through the `PR_TITLE` environment variable and is never interpolated into the script, so a crafted title cannot run as code. `cog` runs without `--ignore-fixup-commits` or `--ignore-merge-commits`, because the squash merge makes the title the commit on `main`. The job sets a git identity first, because `cog` reads the committer from git config.
+- `make drift-check` marks new files as intent-to-add before it diffs, so `git diff` sees them. Run locally, it does that to your untracked files too, so it is meant for a clean checkout like CI's.
+- The runner image is pinned to `ubuntu-24.04` rather than `ubuntu-latest`, so GitHub moving `latest` to a new release cannot break CI unannounced ([upgrading.md](upgrading.md#runner-image)).
