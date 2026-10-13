@@ -113,17 +113,33 @@ type scriptRun struct {
 func runScript(t *testing.T, dir, stdin, script string, args ...string) scriptRun {
 	t.Helper()
 
-	path, err := filepath.Abs(filepath.Join(scriptsDir, script))
-	if err != nil {
-		t.Fatalf("resolve %s: %v", script, err)
-	}
-
-	cmd := isolatedCommand(t, dir, path, args...)
+	cmd := scriptCommand(t, dir, script, args...)
 	cmd.Stdin = strings.NewReader(stdin)
 
+	return runCommand(cmd)
+}
+
+func scriptCommand(t *testing.T, dir, script string, args ...string) *exec.Cmd {
+	t.Helper()
+
+	return isolatedCommand(t, dir, absolutePath(t, filepath.Join(scriptsDir, script)), args...)
+}
+
+func runCommand(cmd *exec.Cmd) scriptRun {
 	output, err := cmd.CombinedOutput()
 
 	return scriptRun{output: string(output), err: err}
+}
+
+func absolutePath(t *testing.T, path string) string {
+	t.Helper()
+
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", path, err)
+	}
+
+	return absolute
 }
 
 func requireRefused(t *testing.T, run scriptRun, wantMessage string) {
@@ -133,9 +149,7 @@ func requireRefused(t *testing.T, run scriptRun, wantMessage string) {
 		t.Fatalf("script passed, want it refused\n%s", run.output)
 	}
 
-	if !strings.Contains(run.output, wantMessage) {
-		t.Errorf("output = %q, want it to contain %q", run.output, wantMessage)
-	}
+	requireOutput(t, run, wantMessage)
 }
 
 func requirePassed(t *testing.T, run scriptRun) {
@@ -143,6 +157,14 @@ func requirePassed(t *testing.T, run scriptRun) {
 
 	if run.err != nil {
 		t.Fatalf("script refused: %v\n%s", run.err, run.output)
+	}
+}
+
+func requireOutput(t *testing.T, run scriptRun, wantMessage string) {
+	t.Helper()
+
+	if !strings.Contains(run.output, wantMessage) {
+		t.Errorf("output = %q, want it to contain %q", run.output, wantMessage)
 	}
 }
 
