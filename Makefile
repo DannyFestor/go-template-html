@@ -5,7 +5,10 @@ MAKEFILE_PATH := $(lastword $(MAKEFILE_LIST))
 
 .DEFAULT_GOAL := help
 
-GOLANGCI_LINT := go tool -modfile=tools/golangci-lint.mod golangci-lint
+# The Go module the Go targets work in, relative to the checkout. FILES are relative to it.
+GO_MODULE := .
+GO := go -C $(GO_MODULE)
+GOLANGCI_LINT := $(GO) tool -modfile=$(CURDIR)/tools/golangci-lint.mod golangci-lint
 GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
@@ -48,10 +51,21 @@ VP := VP_HOME=$(CURDIR)/.vite-plus bin/vp
 
 PROTECTED_REF := refs/heads/main
 
+# Kept in variables, because a literal comma would split the $(call) and $(if) arguments they are used in.
+TEST_TAGS := integration,feature,e2e
+LINT_WIP_DISABLED := unused,unparam
+
 # golangci-lint fails on a directory whose Go files were all deleted, so only directories still holding some are kept.
-go-package-dirs = $(sort $(dir $(wildcard $(addsuffix *.go,$(sort $(dir $(1)))))))
-# Empty when FILES only names deleted packages, which leaves nothing to lint.
-LINT_TARGETS = $(if $(FILES),$(call go-package-dirs,$(FILES)),./...)
+# Each keeps its ./ prefix, which the go command needs and which a module's own root directory would otherwise lose.
+go-package-dirs = $(patsubst $(GO_MODULE)/%,./%,$(sort $(dir $(wildcard $(addsuffix *.go,$(sort $(dir $(addprefix $(GO_MODULE)/,$(1)))))))))
+# Empty when FILES only names deleted packages, which leaves nothing to check.
+GO_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(FILES)),./...)
+on-go-packages = $(if $(GO_PACKAGES),$(1) $(GO_PACKAGES))
+
+AGENTHOOK_MODULE := tools/agenthook
+AGENTHOOK_SOURCES := $(shell find $(AGENTHOOK_MODULE) -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*') \
+	$(AGENTHOOK_MODULE)/go.mod $(AGENTHOOK_MODULE)/go.sum
+AGENTHOOK_EVENTS := $(addprefix agenthook-,pre-tool-use post-tool-use stop)
 
 tmp:
 	mkdir -p $@
@@ -63,6 +77,14 @@ refuse-commit-on-main:
 .PHONY: refuse-push-to-main
 refuse-push-to-main:
 	scripts/refuse-push-to-ref.sh $(PROTECTED_REF)
+
+bin/agenthook: $(AGENTHOOK_SOURCES)
+	go -C $(AGENTHOOK_MODULE) build -o $(CURDIR)/$@ .
+
+# .claude/settings.json pipes each Claude Code hook event's JSON through these.
+.PHONY: $(AGENTHOOK_EVENTS)
+$(AGENTHOOK_EVENTS): agenthook-%: bin/agenthook
+	bin/agenthook $*
 
 ##@ General
 
@@ -90,24 +112,37 @@ hooks-install:
 ##@ Code
 
 .PHONY: fmt
-fmt: ## Format Go code, or only FILES
+fmt: ## Format Go code, or only FILES, in GO_MODULE
 	$(GOLANGCI_LINT) fmt $(FILES)
 
 .PHONY: fmt-check
-fmt-check: ## Fail if Go code, or only FILES, is not formatted
+fmt-check: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
 	$(GOLANGCI_LINT) fmt --diff $(FILES)
 
 .PHONY: lint
-lint: ## Lint Go code with golangci-lint, or only the packages holding FILES
-	$(if $(LINT_TARGETS),$(GOLANGCI_LINT) run $(LINT_TARGETS))
+lint: ## Lint Go code in GO_MODULE with golangci-lint, or only the packages holding FILES
+	$(call on-go-packages,$(GOLANGCI_LINT) run)
+
+# Agents get this after each edit: the caller of code they just wrote often does not exist yet.
+.PHONY: lint-wip
+lint-wip:
+	$(call on-go-packages,$(GOLANGCI_LINT) run --disable $(LINT_WIP_DISABLED))
+
+.PHONY: lint-agenthook
+lint-agenthook: ## Lint the agent hooks in tools/agenthook
+	$(MAKE) lint GO_MODULE=$(AGENTHOOK_MODULE) FILES=
+
+.PHONY: vet
+vet: ## Vet Go code in GO_MODULE with every test tag, or only the packages holding FILES
+	$(call on-go-packages,$(GO) vet -tags=$(TEST_TAGS))
 
 .PHONY: fmt-js
 fmt-js: bin/vp ## Format TypeScript, CSS, JSON and YAML with oxfmt, or only FILES
 	$(VP) fmt $(FILES)
 
 .PHONY: lint-js
-lint-js: bin/vp ## Lint TypeScript with oxlint
-	$(VP) lint
+lint-js: bin/vp ## Lint TypeScript with oxlint, or only FILES
+	$(VP) lint $(FILES)
 
 .PHONY: typecheck-js
 typecheck-js: bin/vp ## Type-check TypeScript with tsc
@@ -129,21 +164,30 @@ lint-commit-msg: bin/cog ## Check that the message in COMMIT_MSG_FILE is a Conve
 arch: ## Check package dependencies against .go-arch-lint.yml
 	$(GO_ARCH_LINT) check
 
+# The agents' end-of-turn gate reads the report to keep only the warnings on the files it checks.
+.PHONY: arch-json
+arch-json:
+	$(GO_ARCH_LINT) check --json
+
 .PHONY: arch-graph
 arch-graph: | tmp ## Draw the component dependency graph into tmp/arch-graph.svg
 	$(GO_ARCH_LINT) graph --out tmp/arch-graph.svg
 
 .PHONY: check
-check: fmt fmt-js lint lint-js typecheck-js arch test ## Format, lint, type-check, check the architecture and run the tests
+check: fmt fmt-js lint lint-agenthook lint-js typecheck-js arch test ## Format, lint, type-check, check the architecture and run the tests
 
 ##@ Test
 
 .PHONY: test
-test: test-go test-js ## Run the Go and JS tests that need no Docker
+test: test-go test-agenthook test-js ## Run the Go and JS tests that need no Docker
 
 .PHONY: test-go
-test-go: ## Run the Go unit, architecture and tooling tests
-	go test -race -shuffle=on ./...
+test-go: ## Run the Go unit, architecture and tooling tests in GO_MODULE, or only the packages holding FILES
+	$(call on-go-packages,$(GO) test -race -shuffle=on)
+
+.PHONY: test-agenthook
+test-agenthook: ## Run the agent hook tests in tools/agenthook
+	$(MAKE) test-go GO_MODULE=$(AGENTHOOK_MODULE) FILES=
 
 .PHONY: test-js
 test-js: bin/vp ## Run the JS unit tests with Vitest
@@ -154,6 +198,10 @@ test-js: bin/vp ## Run the JS unit tests with Vitest
 .PHONY: build
 build: ## Build cmd/web into bin/
 	go build -o bin/web ./cmd/web
+
+.PHONY: build-packages
+build-packages:
+	$(call on-go-packages,$(GO) build)
 
 .PHONY: vite-build
 vite-build: bin/vp ## Build the frontend assets into internal/asset/dist/

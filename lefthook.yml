@@ -42,6 +42,7 @@ pre-push:
       glob: "**/*.go"
       exclude:
         - "**/testdata/**"
+        - &agenthook-module tools/agenthook/**
       run: make -s lint FILES="{files}"
     - name: arch
       files: *changed-files
@@ -49,6 +50,8 @@ pre-push:
         - "**/*.go"
         - go.mod
         - .go-arch-lint.yml
+      exclude:
+        - *agenthook-module
       run: make -s arch
     - name: test-go
       files: *changed-files
@@ -59,7 +62,20 @@ pre-push:
         - "**/*.sh"
         - go.mod
         - go.sum
+      exclude:
+        - *agenthook-module
       run: make -s test-go
+    # The agent hooks are a Go module of their own, so the jobs above, which run in the root module, skip them.
+    - name: lint-agenthook
+      files: *changed-files
+      glob: "tools/agenthook/**/*.go"
+      exclude:
+        - "**/testdata/**"
+      run: make -s lint-agenthook
+    - name: test-agenthook
+      files: *changed-files
+      glob: *agenthook-module
+      run: make -s test-agenthook
     - name: typecheck-js
       files: *changed-files
       glob: &frontend-inputs

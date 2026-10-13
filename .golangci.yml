@@ -1,5 +1,9 @@
 version: "2"
 
+run:
+  # Agent hooks lint while other sessions or a human lint too, so a run waits for the lock instead of failing.
+  allow-serial-runners: true
+
 linters:
   default: all
   disable:
@@ -56,6 +60,8 @@ linters:
       allowed:
         # An empty allowlist allows every module, so the list starts with the main module.
         - module: github.com/DannyFestor/go-template-html
+        # Required only by the agent hooks' own module, tools/agenthook.
+        - module: mvdan.cc/sh/v3
     importas:
       no-extra-aliases: true
     interfacebloat:

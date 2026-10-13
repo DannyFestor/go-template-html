@@ -12,6 +12,8 @@ excludeFiles:
   - "/testdata/"
   # npm packages can ship Go files of their own, as flatted does.
   - "/node_modules/"
+  # The agent hooks are a module of their own, linted and tested on their own.
+  - "/tools/agenthook/"
 
 vendors:
   templ:
