@@ -5,9 +5,26 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 ## Go
 
 - **Pinned in**: the `go` and `toolchain` lines of `go.mod`.
-- **Bump**: `go mod edit -go=<version> -toolchain=go<patch-version>`.
-- **Afterwards**: `make build`.
+- **Bump**: `go mod edit -go=<version> -toolchain=go<patch-version>`, then move the [Go build image](#go-build-image) to the same patch version.
+- **Afterwards**: `make build image`.
 - Go and the two linters move together in one commit ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).
+
+## Go build image
+
+- **Pinned in**: the first `FROM` line of `Dockerfile`, as `golang:<patch-version>-<debian-release>`. The patch version is the one on the `toolchain` line of `go.mod`.
+- **Bump**: change it together with `go.mod` (see [Go](#go)). Move to a newer Debian release once Docker Hub publishes a `golang` tag for it.
+- **Afterwards**: `make image`.
+
+## Distroless base image
+
+- **Pinned in**: the second `FROM` line of `Dockerfile`, as `gcr.io/distroless/static-debian12:nonroot@sha256:<digest>`. The digest is what pins it, so the tag stays as a label for humans.
+- **Bump**: look up the digest the tag points at now and replace it:
+
+  ```sh
+  docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{json .Manifest.Digest}}'
+  ```
+
+- **Afterwards**: `make image`, then `docker run --rm go-template-html:latest` to check the new base still runs `/app/web`.
 
 ## golangci-lint
 

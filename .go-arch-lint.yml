@@ -64,6 +64,8 @@ components:
     in: internal/route/**
   asset:
     in: internal/asset/**
+  buildinfo:
+    in: internal/buildinfo/**
   adapter:
     in: internal/adapter/**
   adapter-postgres:

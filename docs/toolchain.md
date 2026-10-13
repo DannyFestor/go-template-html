@@ -174,6 +174,21 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `minimumReleaseAge` holds back versions published less than three days ago. `vp migrate` exempts the Vite+ toolchain packages, so a new `bin/vp` can install its own.
 - Dependency lifecycle scripts are blocked.
 
+## Production image
+
+| | |
+| --- | --- |
+| Version | `golang:<toolchain>-trixie` for the build stage, `gcr.io/distroless/static-debian12:nonroot` pinned by digest for the runtime, both in `Dockerfile` ([upgrading.md](upgrading.md#go-build-image)) |
+| Role | `make image` builds the image for the host platform and tags it `IMAGE_NAME:VERSION` and `IMAGE_NAME:latest`. Nothing is pushed. |
+
+- The build stage runs `make build`, which fetches `bin/vp` and Node, installs from the frozen lockfile, runs the Vite build and then compiles `cmd/web` with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w -X …/buildinfo.Version=$(VERSION)"`.
+- `VERSION` defaults to `git describe --always --dirty`. `.git` is not in the build context, so `make image` passes it in as a build arg and `make build` stamps it into `buildinfo.Version` with `-X`. A plain `docker build` without `--build-arg VERSION` fails.
+- Cache mounts keep the Go module and build caches, the pnpm store and `.vite-plus/` between local builds. CI starts without them.
+- `.dockerignore` lists what `.gitignore` does, plus `.git`. Change both together.
+- The runtime runs as uid 65532 with CA certificates and tzdata, and holds `/app/web` with `ENTRYPOINT []` and `CMD ["/app/web"]`, so the platform can override the command without resetting an entrypoint.
+- There is no `HEALTHCHECK`: distroless has no shell or curl. Orchestrators probe the app's HTTP endpoints instead.
+- `IMAGE_NAME` is the template's slug, not `APP_NAME`, which `.env` would leak into the tag.
+
 ## Hooks
 
 | Hook | Runs | Tool |
@@ -233,14 +248,15 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 | `generate` | `make generate`, then `make drift-check`, which fails if that changed a tracked file or created a new one |
 | `test` | `make test` |
 | `vuln` | `make vuln` and `make vuln-agenthook` |
+| `image` | `make image`, which builds the [production image](#production-image) without pushing it |
 | `pr-title` | `make lint-pr-title`, which runs `cog verify` on the pull request's title |
 
-- `.github/workflows/ci.yaml` runs the first four jobs in parallel on pull requests and on pushes to `main`. A newer run cancels an older one on the same ref.
+- `.github/workflows/ci.yaml` runs the first five jobs in parallel on pull requests and on pushes to `main`. A newer run cancels an older one on the same ref.
 - `pr-title` has its own workflow, `.github/workflows/pr-title.yml`, which also runs when a pull request is edited. Editing a title re-runs only that check.
 - Every job runs on `ubuntu-24.04` with `permissions: contents: read`, a checkout without persisted credentials and a timeout: 10 minutes, 20 for `test` and 5 for `pr-title`.
 - Every job calls only Make targets ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)), apart from the `pr-title` step that gives `cog` a git identity. Steps that several jobs share are written once as YAML anchors.
 - Actions are pinned by full commit SHA, with the version in a trailing comment. Nothing bumps them automatically ([upgrading.md](upgrading.md#github-actions)).
-- Go comes from `actions/setup-go`, which reads the `toolchain` line of `go.mod`. Node comes only from `bin/vp` through `make js-install`, so `.node-version` stays its only pin.
+- Go comes from `actions/setup-go`, which reads the `toolchain` line of `go.mod`. Node comes only from `bin/vp` through `make js-install`, so `.node-version` stays its only pin. The `image` job sets up neither, because the Dockerfile's build stage brings both.
 - Caches: the Go module and build cache, one per job and keyed on `go.mod`, `go.sum`, `tools/*.sum` and `tools/agenthook/go.sum`, because the jobs build different packages and tools while setup-go's own cache would share one key between them; `bin/`, keyed on `tools/*.version`, the checksum files and `scripts/install-pinned-binary.sh`; the pnpm store, keyed on `pnpm-lock.yaml`; and the golangci-lint cache, keyed on `tools/golangci-lint.sum` plus the commit, so a pull request restores the newest one, which includes `main`'s.
 - The title reaches `cog` through the `PR_TITLE` environment variable and is never interpolated into the script, so a crafted title cannot run as code. `cog` runs without `--ignore-fixup-commits` or `--ignore-merge-commits`, because the squash merge makes the title the commit on `main`. The job sets a git identity first, because `cog` reads the committer from git config.
 - `make drift-check` marks new files as intent-to-add before it diffs, so `git diff` sees them. Run locally, it does that to your untracked files too, so it is meant for a clean checkout like CI's.

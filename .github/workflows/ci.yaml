@@ -98,3 +98,11 @@ jobs:
       - *cache-go
       - run: make vuln
       - run: make vuln-agenthook
+
+  # No layer cache: it would put buildx flags into the Makefile, and the slower test job sets the pace anyway.
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - *checkout
+      - run: make image

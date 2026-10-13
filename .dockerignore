@@ -1,0 +1,12 @@
+# The paths .gitignore lists, plus .git, so local build output and secrets never reach the build context.
+.git
+**/.DS_Store
+bin/
+tmp/
+node_modules/
+.env*
+!.env.example
+.vite-plus/
+internal/asset/dist/*
+!internal/asset/dist/.gitkeep
+.vitest/
