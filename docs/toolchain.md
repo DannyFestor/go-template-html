@@ -94,7 +94,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | v2.2.1, in `tools/tools.mod` ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)) |
 | Role | Runs the git hooks configured in `lefthook.yml`. `make setup` installs them into `.git/hooks`. |
 
-- Every job calls a Make target, so the hooks need nothing on `PATH` beyond the system tools and Go.
+- Every job calls a Make target, so the hooks need nothing on `PATH` beyond the system tools, Go and, for the tooling tests, `jq`.
 - The `lefthook` key in `lefthook.yml` makes the installed hooks run the pinned version through `go tool`. Without it they would use whichever lefthook is on `PATH`.
 - `glob_matcher: doublestar` makes `**/*.go` match files at the root too. The default matcher needs at least one directory.
 - pre-push jobs list their files with `scripts/changed-files.sh` (changed since the merge-base with `origin/main`) and filter them with their own `glob`. A job is skipped when no file matches. A new job only declares its globs.
@@ -261,3 +261,18 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 - The title reaches `cog` through the `PR_TITLE` environment variable and is never interpolated into the script, so a crafted title cannot run as code. `cog` runs without `--ignore-fixup-commits` or `--ignore-merge-commits`, because the squash merge makes the title the commit on `main`. The job sets a git identity first, because `cog` reads the committer from git config.
 - `make drift-check` marks new files as intent-to-add before it diffs, so `git diff` sees them. Run locally, it does that to your untracked files too, so it is meant for a clean checkout like CI's.
 - The runner image is pinned to `ubuntu-24.04` rather than `ubuntu-latest`, so GitHub moving `latest` to a new release cannot break CI unannounced ([upgrading.md](upgrading.md#runner-image)).
+
+## GitHub settings
+
+| | |
+| --- | --- |
+| Version | The `gh` on your `PATH`, 2.57 or newer for `gh auth status --active`. It is not pinned. |
+| Role | `make github-setup` creates or updates the `main` ruleset from `.github/rulesets/main.json` and sets the merge settings from `.github/merge-settings.json`, through `gh api`. |
+
+- The ruleset targets the default branch. It requires a pull request with no approvals and the checks `lint`, `generate`, `test`, `vuln`, `image` and `pr-title`, without requiring the branch to be up to date. It allows only squash merges and refuses force-pushes and deletion. Renaming a CI job means changing its check here and running `make github-setup` again.
+- The merge settings allow only squash merges, which take the pull request's title and body as the commit's title and message, and delete the head branch after the merge.
+- It needs `gh auth login` with admin rights on the repository, and refuses before it writes anything when either is missing. `gh` infers the repository from the checkout's git remote, and `GH_REPO=<owner>/<repo>` overrides it.
+- The ruleset is found by name, so a second run updates it rather than adding another. It prints `created`, the top-level fields that changed (such as `rules` or `enforcement`), or `already up to date`. GitHub adds defaults to what it stores, so an existing ruleset is always rewritten, and the report compares GitHub's own view of it from before and after.
+- The merge settings are only written when one differs, and each change is printed as `<setting>: <old> -> <new>`.
+- GitHub doesn't enforce rulesets on private repositories of free accounts, which is why pre-push refuses pushes to `main` as well.
+- The tooling tests put `tests/hooks/testdata/fake-gh.sh` on `PATH` as `gh`, which serves the API calls from a temporary directory. It applies the `--jq` filters with `jq`, so `make test` needs `jq` on `PATH`.

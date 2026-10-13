@@ -119,6 +119,10 @@ js-install: bin/vp
 hooks-install:
 	$(LEFTHOOK) install
 
+.PHONY: github-setup
+github-setup: ## Create or update the GitHub repo's main ruleset and merge settings with gh, which needs admin rights
+	scripts/github-setup.sh .github/rulesets/main.json .github/merge-settings.json
+
 ##@ Code
 
 .PHONY: generate
