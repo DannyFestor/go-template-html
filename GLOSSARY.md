@@ -57,7 +57,7 @@ A test that checks the code's structure against the architecture rules, not its 
 _Avoid_: Structure test, fitness function
 
 **Tooling test**:
-A test that exercises the repo's developer tooling, such as its git hooks, against a throwaway git repository instead of the application.
+A test that exercises the repo's developer tooling, such as its git hooks, against a throwaway git repository or a fake of the service it calls instead of the application.
 _Avoid_: Script test, hook test
 
 ### Accounts

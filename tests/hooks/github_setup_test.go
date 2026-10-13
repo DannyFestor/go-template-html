@@ -14,6 +14,9 @@ const (
 	githubSetupScript = "github-setup.sh"
 	rulesetFile       = "../../.github/rulesets/main.json"
 	mergeSettingsFile = "../../.github/merge-settings.json"
+
+	withAdminRights    = true
+	withoutAdminRights = false
 )
 
 type fakeGitHub struct {
@@ -31,7 +34,7 @@ func newFakeGitHub(t *testing.T) fakeGitHub {
 		t.Fatalf("install the fake gh: %v", err)
 	}
 
-	github.writeNewRepo(t, true)
+	github.writeNewRepo(t, withAdminRights)
 
 	return github
 }
@@ -194,7 +197,7 @@ func TestGitHubSetupRefusesAUserWithoutAdminRights(t *testing.T) {
 	t.Parallel()
 
 	github := newFakeGitHub(t)
-	github.writeNewRepo(t, false)
+	github.writeNewRepo(t, withoutAdminRights)
 
 	run := github.setup(t)
 

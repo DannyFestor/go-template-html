@@ -89,6 +89,7 @@ sync_merge_settings() {
 }
 
 main() {
+  [ $# -eq 2 ] || fail "usage: $0 <ruleset-file> <merge-settings-file>"
   ruleset_file=$1
   merge_settings_file=$2
   require_gh
