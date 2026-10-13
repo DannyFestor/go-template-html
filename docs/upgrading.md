@@ -13,7 +13,7 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 
 - **Pinned in**: `tools/golangci-lint.mod` and `tools/golangci-lint.sum`, alone so no other tool moves its dependencies ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).
 - **Bump**: `go get -modfile=tools/golangci-lint.mod -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@<version>`.
-- **Afterwards**: read the changelog for new linters, which `default: all` switches on, and for deprecations, which need a disable with a reason. Then run `make fmt-check lint`.
+- **Afterwards**: read the changelog for new linters, which `default: all` switches on, and for deprecations, which need a disable with a reason. Then run `make fmt-check-go lint`.
 
 ## go-arch-lint
 
@@ -59,6 +59,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/gitleaks.mod -tool github.com/zricethezav/gitleaks/v8@<version>`.
 - **Afterwards**: read the changelog for new default rules, then stage a change and run `make lint-secrets`.
 
+## govulncheck
+
+- **Pinned in**: `tools/govulncheck.mod` and `tools/govulncheck.sum`, alone so its `golang.org/x/tools` stays out of the other tools' graphs.
+- **Bump**: `go get -modfile=tools/govulncheck.mod -tool golang.org/x/vuln/cmd/govulncheck@<version>`.
+- **Afterwards**: `make vuln vuln-agenthook`.
+
 ## mvdan.cc/sh
 
 - **Pinned in**: `tools/agenthook/go.mod` and `tools/agenthook/go.sum`, the agent hooks' own module, so the app's `go.mod` never requires it. `.golangci.yml` allows its module path in `gomodguard_v2`.
@@ -82,3 +88,21 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Pinned in**: the `packageManager` field of `package.json`.
 - **Bump**: write the new version into `packageManager` by hand. `vp migrate` leaves it alone.
 - **Afterwards**: `make setup`, which makes `bin/vp` download that pnpm and install from the unchanged lockfile.
+
+## GitHub Actions
+
+- **Pinned in**: every `uses:` line in `.github/workflows/`, by full commit SHA with the version in a trailing comment. Nothing bumps them automatically.
+- **Bump**: look up the latest release and the commit its tag points at, then replace the SHA and the comment on every line that uses the action:
+
+  ```sh
+  gh api repos/actions/checkout/releases/latest --jq .tag_name
+  gh api repos/actions/checkout/commits/<tag> --jq .sha
+  ```
+
+- **Afterwards**: read the release notes for changed inputs or defaults. A new major version of `actions/setup-go` or `actions/cache` can move its cache keys, so the first run after the bump is cold. Then open a pull request and watch every check.
+
+## Runner image
+
+- **Pinned in**: `runs-on: ubuntu-24.04` on every job in `.github/workflows/`.
+- **Bump**: replace the label on every job once GitHub lists the next Ubuntu LTS image as generally available.
+- **Afterwards**: open a pull request and watch every check. The image ships the system tools the Makefile relies on, such as `make`, `curl` and `git`, so a change in their versions shows up there.

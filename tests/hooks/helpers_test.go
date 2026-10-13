@@ -59,6 +59,20 @@ func configureAuthor(t *testing.T, dir string) {
 func commitFile(t *testing.T, dir, name string) {
 	t.Helper()
 
+	commitContent(t, dir, name, t.Name()+"\n")
+}
+
+func commitContent(t *testing.T, dir, name, content string) {
+	t.Helper()
+
+	writeFile(t, dir, name, content)
+	git(t, dir, "add", name)
+	git(t, dir, "commit", "--quiet", "--message", "add "+name)
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+
 	path := filepath.Join(dir, name)
 
 	err := os.MkdirAll(filepath.Dir(path), 0o750)
@@ -66,13 +80,10 @@ func commitFile(t *testing.T, dir, name string) {
 		t.Fatalf("create directory for %s: %v", name, err)
 	}
 
-	err = os.WriteFile(path, []byte(t.Name()+"\n"), 0o600)
+	err = os.WriteFile(path, []byte(content), 0o600)
 	if err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
-
-	git(t, dir, "add", name)
-	git(t, dir, "commit", "--quiet", "--message", "add "+name)
 }
 
 func isolatedCommand(t *testing.T, dir, name string, args ...string) *exec.Cmd {

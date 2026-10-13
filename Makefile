@@ -11,6 +11,7 @@ GO := go -C $(GO_MODULE)
 GOLANGCI_LINT := $(GO) tool -modfile=$(CURDIR)/tools/golangci-lint.mod golangci-lint
 GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
+GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
 SHELL_SCRIPTS := $(shell git ls-files '*.sh')
 
@@ -56,11 +57,14 @@ TEST_TAGS := integration,feature,e2e
 LINT_WIP_DISABLED := unused,unparam
 
 # golangci-lint fails on a directory whose Go files were all deleted, so only directories still holding some are kept.
+go-files-beside = $(wildcard $(addsuffix *.go,$(sort $(dir $(addprefix $(GO_MODULE)/,$(1))))))
 # Each keeps its ./ prefix, which the go command needs and which a module's own root directory would otherwise lose.
-go-package-dirs = $(patsubst $(GO_MODULE)/%,./%,$(sort $(dir $(wildcard $(addsuffix *.go,$(sort $(dir $(addprefix $(GO_MODULE)/,$(1)))))))))
+go-package-dirs = $(patsubst $(GO_MODULE)/%,./%,$(sort $(dir $(1))))
 # Empty when FILES only names deleted packages, which leaves nothing to check.
-GO_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(FILES)),./...)
-on-go-packages = $(if $(GO_PACKAGES),$(1) $(GO_PACKAGES))
+GO_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(call go-files-beside,$(FILES))),./...)
+# go build refuses a package that only holds tests, which test-go compiles anyway.
+GO_BUILD_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(filter-out %_test.go,$(call go-files-beside,$(FILES)))),./...)
+on-packages = $(if $(2),$(1) $(2))
 
 AGENTHOOK_MODULE := tools/agenthook
 AGENTHOOK_SOURCES := $(shell find $(AGENTHOOK_MODULE) -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*') \
@@ -111,22 +115,37 @@ hooks-install:
 
 ##@ Code
 
+.PHONY: generate
+generate: ## Regenerate the generated code in GO_MODULE
+	$(GO) generate ./...
+
+.PHONY: drift-check
+drift-check: ## Fail if make generate changed or added a file
+	scripts/fail-on-drift.sh
+
 .PHONY: fmt
 fmt: ## Format Go code, or only FILES, in GO_MODULE
 	$(GOLANGCI_LINT) fmt $(FILES)
 
 .PHONY: fmt-check
-fmt-check: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
+fmt-check: fmt-check-go fmt-check-js ## Fail if Go or frontend code is not formatted
+
+.PHONY: fmt-check-go
+fmt-check-go: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
 	$(GOLANGCI_LINT) fmt --diff $(FILES)
+
+.PHONY: fmt-check-js
+fmt-check-js: bin/vp ## Fail if TypeScript, CSS, JSON or YAML, or only FILES, is not formatted
+	$(VP) fmt --check $(FILES)
 
 .PHONY: lint
 lint: ## Lint Go code in GO_MODULE with golangci-lint, or only the packages holding FILES
-	$(call on-go-packages,$(GOLANGCI_LINT) run)
+	$(call on-packages,$(GOLANGCI_LINT) run,$(GO_PACKAGES))
 
 # Agents get this after each edit: the caller of code they just wrote often does not exist yet.
 .PHONY: lint-wip
 lint-wip:
-	$(call on-go-packages,$(GOLANGCI_LINT) run --disable $(LINT_WIP_DISABLED))
+	$(call on-packages,$(GOLANGCI_LINT) run --disable $(LINT_WIP_DISABLED),$(GO_PACKAGES))
 
 .PHONY: lint-agenthook
 lint-agenthook: ## Lint the agent hooks in tools/agenthook
@@ -134,7 +153,7 @@ lint-agenthook: ## Lint the agent hooks in tools/agenthook
 
 .PHONY: vet
 vet: ## Vet Go code in GO_MODULE with every test tag, or only the packages holding FILES
-	$(call on-go-packages,$(GO) vet -tags=$(TEST_TAGS))
+	$(call on-packages,$(GO) vet -tags=$(TEST_TAGS),$(GO_PACKAGES))
 
 .PHONY: fmt-js
 fmt-js: bin/vp ## Format TypeScript, CSS, JSON and YAML with oxfmt, or only FILES
@@ -160,6 +179,20 @@ lint-secrets: ## Scan the staged changes for secrets with gitleaks
 lint-commit-msg: bin/cog ## Check that the message in COMMIT_MSG_FILE is a Conventional Commit
 	bin/cog verify --ignore-fixup-commits --ignore-merge-commits --file $(COMMIT_MSG_FILE)
 
+# The title comes from the environment, so a crafted title can never reach the shell as code. A squash merge turns
+# it into the commit on main, so fixup! and merge titles fail too.
+.PHONY: lint-pr-title
+lint-pr-title: bin/cog ## Check that the pull request title in PR_TITLE is a Conventional Commit
+	bin/cog verify "$$PR_TITLE"
+
+.PHONY: vuln
+vuln: ## Check GO_MODULE and its dependencies for known vulnerabilities with govulncheck
+	$(GOVULNCHECK) ./...
+
+.PHONY: vuln-agenthook
+vuln-agenthook: ## Check the agent hooks in tools/agenthook for known vulnerabilities
+	$(MAKE) vuln GO_MODULE=$(AGENTHOOK_MODULE) FILES=
+
 .PHONY: arch
 arch: ## Check package dependencies against .go-arch-lint.yml
 	$(GO_ARCH_LINT) check
@@ -183,7 +216,7 @@ test: test-go test-agenthook test-js ## Run the Go and JS tests that need no Doc
 
 .PHONY: test-go
 test-go: ## Run the Go unit, architecture and tooling tests in GO_MODULE, or only the packages holding FILES
-	$(call on-go-packages,$(GO) test -race -shuffle=on)
+	$(call on-packages,$(GO) test -race -shuffle=on,$(GO_PACKAGES))
 
 .PHONY: test-agenthook
 test-agenthook: ## Run the agent hook tests in tools/agenthook
@@ -201,7 +234,7 @@ build: ## Build cmd/web into bin/
 
 .PHONY: build-packages
 build-packages:
-	$(call on-go-packages,$(GO) build)
+	$(call on-packages,$(GO) build,$(GO_BUILD_PACKAGES))
 
 .PHONY: vite-build
 vite-build: bin/vp ## Build the frontend assets into internal/asset/dist/
