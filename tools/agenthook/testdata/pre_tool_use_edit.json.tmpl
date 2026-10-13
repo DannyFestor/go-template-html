@@ -1,0 +1,15 @@
+{
+  "session_id": {{json .SessionID}},
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-git-app/{{.SessionID}}.jsonl",
+  "cwd": {{json .Cwd}},
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": {{json .FilePath}},
+    "old_string": {{json .OldString}},
+    "new_string": {{json .NewString}},
+    "replace_all": false
+  },
+  "tool_use_id": "toolu_01EditFixture"
+}

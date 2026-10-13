@@ -59,6 +59,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/gitleaks.mod -tool github.com/zricethezav/gitleaks/v8@<version>`.
 - **Afterwards**: read the changelog for new default rules, then stage a change and run `make lint-secrets`.
 
+## mvdan.cc/sh
+
+- **Pinned in**: `tools/agenthook/go.mod` and `tools/agenthook/go.sum`, the agent hooks' own module, so the app's `go.mod` never requires it. `.golangci.yml` allows its module path in `gomodguard_v2`.
+- **Bump**: `go -C tools/agenthook get mvdan.cc/sh/v3@<version>`. A new major version also changes the module path, in the imports and in `.golangci.yml`.
+- **Afterwards**: read the changelog for parser and expansion changes, then run `make lint-agenthook test-agenthook`.
+
 ## Vite+
 
 - **Pinned in**: `tools/vp.version` and `tools/vp.sha256` for `bin/vp`, and the `vite-plus` catalog entry and `vite` override in `pnpm-workspace.yaml` for the project ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)).

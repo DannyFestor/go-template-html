@@ -1,0 +1,8 @@
+# Stands in for the repo Makefile: logs each target with its variables, prints output-<target> and fails if
+# fail-<target> exists.
+Makefile: ;
+
+%:
+	@echo '$@ GO_MODULE=$(GO_MODULE) FILES=$(FILES)' >> make.log
+	@if [ -f output-$@ ]; then cat output-$@; fi
+	@if [ -f fail-$@ ]; then cat fail-$@; exit 1; fi

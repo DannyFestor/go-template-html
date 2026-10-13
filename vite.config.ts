@@ -38,6 +38,8 @@ export default defineConfig({
       complexity: ["error", { max: 10 }],
       "max-depth": ["error", { max: 4 }],
       "max-params": ["error", { max: 5 }],
+      // The agent hooks only let an oxlint-disable through when it names a rule, and CI holds humans to the same.
+      "unicorn/no-abusive-eslint-disable": "error",
     },
   },
   // Markdown keeps its hand-aligned tables, and TOML is left to the tools that own each file.

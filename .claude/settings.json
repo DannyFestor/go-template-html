@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make -s --no-print-directory -C \"$CLAUDE_PROJECT_DIR\" agenthook-pre-tool-use || exit 1",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make -s --no-print-directory -C \"$CLAUDE_PROJECT_DIR\" agenthook-post-tool-use || exit 1",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make -s --no-print-directory -C \"$CLAUDE_PROJECT_DIR\" agenthook-stop || exit 1",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
+  }
+}

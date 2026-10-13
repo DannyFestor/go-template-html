@@ -22,6 +22,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `make` with no target runs `help`, which prints every target that has a `## description`, grouped under the `##@ Group` headers above it. The parsing lives in `scripts/make-help.awk`. Targets without a `##` comment are internal and stay hidden.
 - `.env` is included if it exists but not exported, so recipes see the same overrides as Compose and the app.
 - Composite targets only call other targets, and each leaf target runs one command.
+- The Go targets work in the module `GO_MODULE` names, relative to the checkout (`.` by default), and read `FILES` relative to it. `tools/agenthook` is a module of its own, so `lint-agenthook` and `test-agenthook` run `lint` and `test-go` with `GO_MODULE=tools/agenthook`.
 - Make 3.81 has no `.ONESHELL` and no `--output-sync`.
 - Make 3.81 reads an escaped colon in a prerequisite (`a\:b`) literally, backslash included, so it never matches the target. Target names use hyphens instead of colons.
 
@@ -46,6 +47,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - It runs through `go tool -modfile=tools/golangci-lint.mod`, so the project toolchain compiles it and it never fails with "built with an older Go". The first run compiles it and is slow.
 - `linters.default: all` turns on every linter, including deprecated ones that have a successor. Each disabled linter has its reason next to it.
 - By default only one issue is shown per line. `--uniq-by-line=false` shows all of them.
+- `run.allow-serial-runners` makes a run wait for another one's lock instead of failing, because the agent hooks lint while other sessions or a human lint too.
 - The formatters are gofumpt with its extra rules, goimports with the module path as the local prefix, and golines at 120 columns. `lll` is off because golines wraps long lines.
 - The only escape hatch is `//nolint:<linter> // <why>`. nolintlint rejects a directive without a specific linter or a reason.
 
@@ -175,9 +177,42 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | pre-push | Lints the Go packages changed since the merge-base with `origin/main` | `make lint` (golangci-lint) |
 | pre-push | Checks the architecture when Go, `go.mod` or `.go-arch-lint.yml` changed | `make arch` (go-arch-lint) |
 | pre-push | Runs the unit, architecture and tooling tests when a `.go`, `.templ`, `.sql`, `.sh`, `go.mod` or `go.sum` file changed. Tooling tests cover the scripts. | `make test-go` |
+| pre-push | Lints and tests the [agent hooks](#agent-hooks) when a file under `tools/agenthook/` changed. The three jobs above skip that module. | `make lint-agenthook`, `make test-agenthook` |
 | pre-push | Type-checks, lints and runs the JS unit tests when a file under `internal/asset/src/`, `package.json`, the lockfile, `pnpm-workspace.yaml`, `.node-version`, `tsconfig.json` or `vite.config.ts` changed | `make typecheck-js`, `make lint-js`, `make test-js` |
 
 pre-commit and pre-push are piped: the first failing job stops the rest. No hook runs integration, feature or e2e tests. CI runs those.
+
+## Agent hooks
+
+| | |
+| --- | --- |
+| Version | `tools/agenthook`, a Go module of its own, which pins `mvdan.cc/sh/v3` in its `go.mod` |
+| Role | Guards and checks a Claude Code agent's edits and shell commands. `.claude/settings.json` calls `make -s agenthook-<event>`, which rebuilds `bin/agenthook` whenever its sources change and pipes the hook JSON through stdin. |
+
+| Event | Rule | Change it in |
+| --- | --- | --- |
+| Before an edit | Denies edits to generated output and names what regenerates it: a file with a `Code generated … DO NOT EDIT.` header (`make generate`), `internal/asset/dist/` (`make vite-build`), `migrations.sum` (`make generate`), `go.sum` (`go mod tidy`) and `pnpm-lock.yaml` (`bin/vp add` or `remove`) | `internal/editrule/generated.go` |
+| Before an edit | Asks before editing a guardrail file: `.golangci.yml`, `.go-arch-lint.yml`, `lefthook.yml`, `tools/agenthook/`, `.claude/settings.json`, `.github/workflows/`, `.github/rulesets/` | `internal/editrule/guardrail.go` |
+| Before an edit | Asks before editing `go.mod`, `tools/*.mod` or `package.json`, which can add a dependency | `internal/editrule/guardrail.go` |
+| Before an edit | Comment guard: a comment added to a Go, TS, templ, SQL or shell file is denied with "comments only explain a why the code cannot", and the same comment resubmitted in the session asks the human. Comments already in the file pass, and so do directives (see below). | `internal/comment/languages.go` |
+| Before a shell command | Denies shell writes into a checkout, so every change goes through the edit tools and their post-edit checks: redirects, `tee`, `sed -i`, `perl -i`, `cp`, `mv` and `ln` into it, `patch`, `git apply`, and inline interpreter scripts (`-c`, `-e`, heredocs) that call a file-writing API. Writes outside every checkout, as under `$TMPDIR`, pass. | `internal/commandrule/write.go` |
+| Before a shell command | Denies `git push` to `main`: a `main`, `HEAD:main` or `refs/heads/main` refspec, `--all`, `--mirror`, or a push without a refspec where `main` is checked out. Other branches pass, `--force-with-lease` included. | `internal/commandrule/push.go` |
+| Before a shell command | Asks before `git reset --hard`, `clean -f…`, `checkout -- <path>`, `checkout .`, `restore` without `--staged`, `stash drop`, `stash clear`, `branch -D` and `worktree remove --force` | `internal/commandrule/destructive.go` |
+| Before a shell command | Asks before `go get`, `go mod edit -require` or `-tool`, `pnpm add`, `vp add` and `npm install <package>`. `go mod tidy` and frozen installs pass. | `internal/commandrule/dependency.go` |
+| After an edit | A `.go` file gets `make fmt`, `make vet` (every test tag) and `make lint-wip` (no `unused` or `unparam`, since the caller is often not written yet) in its module. A `.ts` file gets `make fmt-js` and `make lint-js`. The first failure goes back to the agent. | `internal/check/after_edit.go` |
+| End of turn | `make build-packages`, go-arch-lint, `make lint` and `make test-go` on the packages this session edited, per module, then `make typecheck-js` and `make test-js` if it touched TypeScript. A failure blocks the turn from ending. The gate is skipped when nothing changed since it last passed, and it lets the turn end after 3 blocks in a row. | `internal/check/end_of_turn.go`, `internal/hook/gate.go` |
+
+- Exempt directives: Go `//go:…`, `//nolint:<linter> // <reason>`, `//name:arg` directives and the generated-code header; TS `// @ts-expect-error`, `/// <reference …>` and `oxlint-disable`, `-line`, `-next-line` or `oxlint-enable` naming at least one rule; SQL `-- name: … :<cmd>` and `-- +goose …`; the shebang and `# shellcheck …`; and a `gitleaks:allow` marker in any language. A bare `oxlint-disable` and every `eslint-` directive count as comments, and oxlint's `unicorn/no-abusive-eslint-disable` holds humans to the same rule.
+- The adapter in `internal/claude` is the only one, and the rules in `internal/hook` know nothing about Claude Code. Every decision goes out as Claude Code's JSON with exit status 0, so a non-zero status only means the hook broke. `settings.json` turns any failure into exit 1, which Claude Code reports without blocking, so a `bin/agenthook` that no longer builds cannot block the edit that fixes it.
+- Every rule judges the checkout of the edited path, or of the directory a command runs in after its `cd`s and `git -C`s, never the hook's working directory. A linked worktree gets the checks of its own Makefile and module.
+- Session state (edited paths, comments already denied, the gate's counters) lives in `$(git rev-parse --git-dir)/agenthook/<session id>.json`, so linked worktrees and parallel sessions never share it. The end-of-turn gate reads this session's state from every worktree of the repository.
+- go-arch-lint checks the whole root module and cannot be limited to packages, so the gate runs `make arch-json` and keeps only the warnings on this session's files. Two sessions editing different Go packages in one checkout never fail each other's gate. `typecheck-js` and `test-js` cover the whole frontend, so a session that touched TypeScript also sees another session's TypeScript failures.
+- The gate records the edits it let through, after a pass or a release, and stays quiet until they change.
+- The comment guard lexes rather than parses, so it works on fragments. A line comment marker inside a word, as in `https://` or `${#x}`, does not start a comment, and templ treats only `"` and `` ` `` as string quotes, because its HTML text is full of apostrophes.
+- Shell commands are parsed with `mvdan.cc/sh`, never run. Words expand with the hook's environment plus the variables the script assigns. Of the command substitutions, only `$(pwd)` and `$(git rev-parse --show-toplevel)` resolve. Any other substitution stays unknown, and so does a path or directory built from it, which the rules then pass.
+- Interpreter scripts are matched against known file-writing calls, not run. A write the list does not know passes, and a script file such as `python3 x.py` is not read.
+- No rule covers hook bypasses or force-pushes: the git hooks, the ruleset and CI cover them.
+- The tests are tooling tests: table tests over the shell parser and every rule decision in `internal/`, plus recorded Claude Code hook JSON, kept as `testdata/*.json.tmpl` templates that fill in the paths, replayed through the built binary against throwaway repos whose stub Makefile logs the targets it is asked to run.
 
 ## CI
 
