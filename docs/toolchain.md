@@ -181,13 +181,13 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | `golang:<toolchain>-trixie` for the build stage, `gcr.io/distroless/static-debian12:nonroot` pinned by digest for the runtime, both in `Dockerfile` ([upgrading.md](upgrading.md#go-build-image)) |
 | Role | `make image` builds the image for the host platform and tags it `IMAGE_NAME:VERSION` and `IMAGE_NAME:latest`. Nothing is pushed. |
 
-- The build stage runs `make build`, which fetches `bin/vp` and Node, installs from the frozen lockfile, runs the Vite build and then compiles `cmd/web` with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w"`.
+- The build stage runs `make build`, which fetches `bin/vp` and Node, installs from the frozen lockfile, runs the Vite build and then compiles `cmd/web` with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w -X …/buildinfo.Version=$(VERSION)"`.
 - `VERSION` defaults to `git describe --always --dirty`. `.git` is not in the build context, so `make image` passes it in as a build arg and `make build` stamps it into `buildinfo.Version` with `-X`. A plain `docker build` without `--build-arg VERSION` fails.
 - Cache mounts keep the Go module and build caches, the pnpm store and `.vite-plus/` between local builds. CI starts without them.
 - `.dockerignore` lists what `.gitignore` does, plus `.git`. Change both together.
-- The runtime runs as uid 65532 with CA certificates and tzdata, and holds `/app/web` with `ENTRYPOINT []` and `CMD ["/app/web"]`, so the platform can run another binary from the same image by overriding the command.
+- The runtime runs as uid 65532 with CA certificates and tzdata, and holds `/app/web` with `ENTRYPOINT []` and `CMD ["/app/web"]`, so the platform can override the command without resetting an entrypoint.
 - There is no `HEALTHCHECK`: distroless has no shell or curl. Orchestrators probe the app's HTTP endpoints instead.
-- `IMAGE_NAME` is the template's slug, which `make rename` rewrites. It is not `APP_NAME`, which `.env` would leak into the tag.
+- `IMAGE_NAME` is the template's slug, not `APP_NAME`, which `.env` would leak into the tag.
 
 ## Hooks
 

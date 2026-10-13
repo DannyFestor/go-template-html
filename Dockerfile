@@ -16,6 +16,6 @@ FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c
 
 COPY --from=build /src/bin/web /app/web
 
-# The platform overrides the command to run another process from the same image.
+# Lets the platform override the command alone, without having to reset an entrypoint.
 ENTRYPOINT []
 CMD ["/app/web"]

@@ -24,7 +24,7 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
   docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{json .Manifest.Digest}}'
   ```
 
-- **Afterwards**: `make image`, then `docker run --rm go-template-html:latest` to see `/app/web` start.
+- **Afterwards**: `make image`, then `docker run --rm go-template-html:latest` to check the new base still runs `/app/web`.
 
 ## golangci-lint
 
