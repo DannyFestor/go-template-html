@@ -26,7 +26,8 @@ vendors:
     in: github.com/pressly/goose/v3/**
   config:
     in:
-      - github.com/joho/godotenv/**
+      # `/**` does not match the module's root package, which is all godotenv has.
+      - github.com/joho/godotenv
       - github.com/caarlos0/env/**
   gofakeit:
     in: github.com/brianvoe/gofakeit/v7/**
@@ -99,6 +100,7 @@ deps:
       - bootstrap
   bootstrap:
     mayDependOn:
+      - bootstrap
       - domain
       - action
       - request
@@ -116,6 +118,7 @@ deps:
       - adapter-goose
       - migrations
       - seed
+      - buildinfo
     canUse:
       - config
       # One shared client, built here and handed to the Valkey adapters.
@@ -132,6 +135,7 @@ deps:
       - domain
   handler:
     mayDependOn:
+      - handler
       - domain
       - action
       - request
@@ -162,6 +166,7 @@ deps:
       - templ
   adapter:
     mayDependOn:
+      - adapter
       - domain
   adapter-postgres:
     mayDependOn:

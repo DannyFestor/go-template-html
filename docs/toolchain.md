@@ -51,6 +51,8 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `run.allow-serial-runners` makes a run wait for another one's lock instead of failing, because the agent hooks lint while other sessions or a human lint too.
 - The formatters are gofumpt with its extra rules, goimports with the module path as the local prefix, and golines at 120 columns. `lll` is off because golines wraps long lines.
 - The only escape hatch is `//nolint:<linter> // <why>`. nolintlint rejects a directive without a specific linter or a reason.
+- gomodguard_v2 blocks every module missing from its allowlist in `.golangci.yml`, so a new dependency needs an entry there as well as in `.go-arch-lint.yml`.
+- exhaustruct_v5 wants every field of a struct literal, library structs such as `http.Server` included, so unused fields are written out with their zero values.
 
 ## go-arch-lint
 
@@ -62,7 +64,8 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - It is a whitelist: a Go file outside every component fails the check, and so does a vendor import that no `canUse` allows. The standard library is always allowed, so stdlib bans live in depguard.
 - Any warning fails the check. `--max-warnings` only limits how many are printed, and it rejects 0.
 - A package that matches several components belongs to the most specific one, so `internal/adapter/postgres` is `adapter-postgres`, not `adapter`.
-- A component may not import its own subpackages unless it lists itself in `mayDependOn`.
+- A component may not import its own subpackages unless it lists itself in `mayDependOn`. A black-box `_test` package imports the package it tests, so every component with tests lists itself.
+- A vendor glob ending in `/**` does not match the module's root package, so a library imported at its root, such as godotenv, is listed by its bare path.
 - `ignoreNotFoundComponents` is on, so components can be declared before their packages exist.
 - It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` and `node_modules/` directories are excluded, because some npm packages ship Go files.
 - deepScan is off ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). Turning it back on needs a `golang.org/x/tools` newer than the v0.49 go-arch-lint v1.19.0 requires: that version cannot read Go 1.27 export data, and deepScan then silently checks nothing.
