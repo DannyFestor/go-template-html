@@ -6,11 +6,19 @@ func AfterEdit(root, rel string) Plan {
 		module := goModule(root, rel)
 		files := []string{moduleRel(module, rel)}
 
-		return Plan{
-			targetCheck(goTarget("fmt", module, files)),
-			targetCheck(goTarget("vet", module, files)),
-			targetCheck(goTarget("lint-wip", module, files)),
-		}
+		return append(Plan{targetCheck(goTarget("fmt-go", module, files))}, goPackageChecks(module, files)...)
+	case isTempl(rel):
+		generated := generatedFromTempl(rel)
+		module := goModule(root, generated)
+		templFiles := []string{rel}
+
+		return append(
+			Plan{
+				targetCheck(checkoutTarget("fmt-templ", templFiles)),
+				targetCheck(checkoutTarget("generate-templ", templFiles)),
+			},
+			goPackageChecks(module, []string{moduleRel(module, generated)})...,
+		)
 	case isTypeScript(rel):
 		return Plan{
 			targetCheck(checkoutTarget("fmt-js", []string{rel})),
@@ -18,5 +26,12 @@ func AfterEdit(root, rel string) Plan {
 		}
 	default:
 		return nil
+	}
+}
+
+func goPackageChecks(module string, files []string) Plan {
+	return Plan{
+		targetCheck(goTarget("vet", module, files)),
+		targetCheck(goTarget("lint-wip", module, files)),
 	}
 }

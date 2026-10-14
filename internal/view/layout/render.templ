@@ -1,0 +1,15 @@
+package layout
+
+import "github.com/DannyFestor/go-template-html/internal/view"
+
+templ Render(kind Kind, shell view.Shell, body templ.Component) {
+	if kind == KindApp {
+		@App(shell) {
+			@body
+		}
+	} else {
+		@Public(shell) {
+			@body
+		}
+	}
+}

@@ -1,0 +1,22 @@
+package component
+
+templ AuthSplit(appName, heading, description string) {
+	<div class="grid min-h-screen lg:grid-cols-2">
+		<div class="hidden flex-col justify-between bg-zinc-900 p-10 text-white lg:flex">
+			@AppLogo(appName)
+			<blockquote class="text-lg">
+				“Simplicity is prerequisite for reliability.”
+				<footer class="mt-2 text-sm opacity-60">Edsger W. Dijkstra</footer>
+			</blockquote>
+		</div>
+		<div class="flex items-center justify-center p-6">
+			<div class="flex w-full max-w-sm flex-col gap-6">
+				<div class="text-center">
+					<h1 class="text-xl font-semibold">{ heading }</h1>
+					<p class="mt-1 text-sm text-zinc-500">{ description }</p>
+				</div>
+				{ children... }
+			</div>
+		</div>
+	</div>
+}

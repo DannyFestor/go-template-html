@@ -1,0 +1,14 @@
+package component
+
+templ NavLink(href, label string, icon IconName) {
+	<a
+		href={ templ.SafeURL(href) }
+		x-bind:aria-current="current($el.pathname)"
+		class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-200/60 aria-[current=page]:bg-zinc-200 aria-[current=page]:font-medium dark:hover:bg-zinc-800/60 dark:aria-[current=page]:bg-zinc-800"
+	>
+		if icon != IconNone {
+			@Icon(icon)
+		}
+		{ label }
+	</a>
+}

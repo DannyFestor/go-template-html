@@ -88,6 +88,8 @@ jobs:
       - *cache-pnpm-store
       - *js-install
       - run: make test
+      - run: make vite-build
+      - run: make test-feature
 
   vuln:
     runs-on: ubuntu-24.04

@@ -1,0 +1,21 @@
+package component
+
+templ NavGroup(label, pathPrefix string, icon IconName) {
+	<div x-data="disclosure" data-path-prefix={ pathPrefix } x-init="open = active($el.dataset.pathPrefix)">
+		<button
+			type="button"
+			x-on:click="toggle()"
+			x-bind:aria-expanded="open"
+			class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60"
+		>
+			@Icon(icon)
+			{ label }
+			<span class="ml-auto transition-transform" x-bind:class="open ? 'rotate-180' : ''">
+				@Icon(IconChevronDown)
+			</span>
+		</button>
+		<div x-show="open" x-cloak class="ml-4 flex flex-col gap-0.5 border-l border-zinc-200 pl-2 dark:border-zinc-700">
+			{ children... }
+		</div>
+	</div>
+}

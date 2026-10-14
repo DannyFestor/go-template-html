@@ -17,7 +17,9 @@ excludeFiles:
 
 vendors:
   templ:
-    in: github.com/a-h/templ/**
+    in:
+      - github.com/a-h/templ
+      - github.com/a-h/templ/**
   pgx:
     in: github.com/jackc/pgx/v5/**
   go-redis:
@@ -34,6 +36,9 @@ vendors:
   # depguard keeps it out of non-test files.
   testify:
     in: github.com/stretchr/testify/**
+  # depguard keeps it out of non-test files.
+  goquery:
+    in: github.com/PuerkitoBio/goquery
 
 commonVendors:
   - testify
@@ -155,9 +160,13 @@ deps:
       - route
   web:
     mayDependOn:
+      - web
       - domain
       - view
       - route
+  asset:
+    mayDependOn:
+      - asset
   view:
     mayDependOn:
       - view
@@ -217,6 +226,8 @@ deps:
       - factory
       - domain
       - route
+    canUse:
+      - goquery
   e2e-test:
     mayDependOn:
       - bootstrap

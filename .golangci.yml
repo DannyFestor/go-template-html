@@ -39,6 +39,8 @@ linters:
           deny:
             - pkg: github.com/stretchr/testify
               desc: test-only, imported by tests and internal/testsupport (ADR-0007)
+            - pkg: github.com/PuerkitoBio/goquery
+              desc: test-only, imported by tests and internal/testsupport (ADR-0007)
         no-reflect:
           deny:
             - pkg: reflect$
@@ -63,6 +65,8 @@ linters:
         - module: github.com/caarlos0/env/v11
         - module: github.com/joho/godotenv
         - module: github.com/stretchr/testify
+        - module: github.com/a-h/templ
+        - module: github.com/PuerkitoBio/goquery
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:

@@ -1,0 +1,44 @@
+package layout
+
+import (
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view"
+	"github.com/DannyFestor/go-template-html/internal/view/component"
+)
+
+templ App(shell view.Shell) {
+	@document(shell, AppMainID) {
+		<div x-data="disclosure" x-on:htmx:after:history:push.document="close()" class="flex min-h-full">
+			<aside
+				x-data="nav"
+				x-bind:class="open ? 'flex' : 'hidden'"
+				class="fixed inset-y-0 z-30 w-64 shrink-0 flex-col gap-4 border-r border-zinc-200 bg-zinc-50 p-4 lg:static lg:flex dark:border-zinc-700 dark:bg-zinc-950"
+			>
+				@component.UserMenu(shell.User)
+				<nav class="flex flex-col gap-0.5">
+					@component.NavLink(route.Dashboard, "Dashboard", component.IconDashboard)
+					@component.NavGroup("Settings", route.Settings, component.IconSettings) {
+						@component.NavLink(route.SettingsProfile, "Profile", component.IconNone)
+						@component.NavLink(route.SettingsPassword, "Password", component.IconNone)
+						@component.NavLink(route.SettingsTwoFactor, "Two-factor authentication", component.IconNone)
+						@component.NavLink(route.SettingsAppearance, "Appearance", component.IconNone)
+					}
+				</nav>
+				<div class="mt-auto">
+					@component.AppLogo(shell.AppName)
+				</div>
+			</aside>
+			<div class="flex min-w-0 flex-1 flex-col">
+				<header class="flex items-center border-b border-zinc-200 p-3 lg:hidden dark:border-zinc-700">
+					<button type="button" x-on:click="toggle()" x-bind:aria-expanded="open" aria-label="Menu">
+						@component.Icon(component.IconMenu)
+					</button>
+				</header>
+				@component.BannerSlot()
+				<main id={ AppMainID } class="p-6 lg:p-10">
+					{ children... }
+				</main>
+			</div>
+		</div>
+	}
+}

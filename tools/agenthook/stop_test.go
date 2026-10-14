@@ -76,6 +76,26 @@ func TestTheEndOfTurnGateChecksEachModuleOnItsOwn(t *testing.T) {
 	)
 }
 
+func TestTheEndOfTurnGateChecksThePackageOfAnEditedTemplFile(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	path := writeFile(t, repo, "internal/view/home/page.templ", "package home\n")
+	call := editCall(repo, path, "package x", "package home")
+	call.SessionID = session
+	requirePassed(t, runHook(t, "post-tool-use", "post_tool_use_edit", call))
+	clearMakeLog(t, repo)
+
+	requirePassed(t, runHook(t, "stop", "stop", stopCall(repo, session)))
+
+	requireMakeLog(t, repo,
+		"build-packages GO_MODULE=. FILES=internal/view/home/page_templ.go",
+		"arch-json GO_MODULE= FILES=",
+		"lint GO_MODULE=. FILES=internal/view/home/page_templ.go",
+		"test-go GO_MODULE=. FILES=internal/view/home/page_templ.go",
+	)
+}
+
 func TestArchWarningsOnAnotherSessionsFilesDoNotBlockTheGate(t *testing.T) {
 	t.Parallel()
 

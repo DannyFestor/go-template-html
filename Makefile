@@ -13,6 +13,8 @@ GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
+# Only the root module has templ files, so templ runs there whatever GO_MODULE names.
+TEMPL := go tool templ
 # Deferred, because the image's build context has no .git for git ls-files to read.
 SHELL_SCRIPTS = $(shell git ls-files '*.sh')
 
@@ -140,7 +142,14 @@ reset: ## Stop and remove the service containers and delete the Postgres and Val
 ##@ Code
 
 .PHONY: generate
-generate: ## Regenerate the generated code in GO_MODULE
+generate: generate-templ generate-go ## Regenerate the generated code
+
+.PHONY: generate-templ
+generate-templ: ## Regenerate the Go code of every templ file, or only of the one templ file in FILES
+	$(TEMPL) generate $(if $(FILES),-f $(FILES))
+
+.PHONY: generate-go
+generate-go: ## Run go generate in GO_MODULE
 	$(GO) generate ./...
 
 .PHONY: drift-check
@@ -148,15 +157,27 @@ drift-check: ## Fail if make generate changed or added a file
 	scripts/fail-on-drift.sh
 
 .PHONY: fmt
-fmt: ## Format Go code, or only FILES, in GO_MODULE
+fmt: fmt-go fmt-templ ## Format Go and templ code
+
+.PHONY: fmt-go
+fmt-go: ## Format Go code, or only FILES, in GO_MODULE
 	$(GOLANGCI_LINT) fmt $(FILES)
 
+.PHONY: fmt-templ
+fmt-templ: ## Format templ files, or only FILES
+	$(TEMPL) fmt $(or $(FILES),.)
+
 .PHONY: fmt-check
-fmt-check: fmt-check-go fmt-check-js ## Fail if Go or frontend code is not formatted
+fmt-check: fmt-check-go fmt-check-templ fmt-check-js ## Fail if Go, templ or frontend code is not formatted
 
 .PHONY: fmt-check-go
 fmt-check-go: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
 	$(GOLANGCI_LINT) fmt --diff $(FILES)
+
+# templ has no dry run: -fail formats before it fails, and -stdout reports every file as changed.
+.PHONY: fmt-check-templ
+fmt-check-templ: ## Fail if templ files, or only FILES, are not formatted, formatting them in place
+	$(TEMPL) fmt -fail $(or $(FILES),.)
 
 .PHONY: fmt-check-js
 fmt-check-js: bin/vp ## Fail if TypeScript, CSS, JSON or YAML, or only FILES, is not formatted
@@ -164,12 +185,12 @@ fmt-check-js: bin/vp ## Fail if TypeScript, CSS, JSON or YAML, or only FILES, is
 
 .PHONY: lint
 lint: ## Lint Go code in GO_MODULE with golangci-lint, or only the packages holding FILES
-	$(call on-packages,$(GOLANGCI_LINT) run,$(GO_PACKAGES))
+	$(call on-packages,$(GOLANGCI_LINT) run --build-tags $(TEST_TAGS),$(GO_PACKAGES))
 
 # Agents get this after each edit: the caller of code they just wrote often does not exist yet.
 .PHONY: lint-wip
 lint-wip:
-	$(call on-packages,$(GOLANGCI_LINT) run --disable $(LINT_WIP_DISABLED),$(GO_PACKAGES))
+	$(call on-packages,$(GOLANGCI_LINT) run --build-tags $(TEST_TAGS) --disable $(LINT_WIP_DISABLED),$(GO_PACKAGES))
 
 .PHONY: lint-agenthook
 lint-agenthook: ## Lint the agent hooks in tools/agenthook
@@ -249,6 +270,11 @@ test-agenthook: ## Run the agent hook tests in tools/agenthook
 .PHONY: test-js
 test-js: bin/vp ## Run the JS unit tests with Vitest
 	$(VP) test
+
+# The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
+.PHONY: test-feature
+test-feature: ## Run the feature tests in tests/feature against the last `make vite-build`
+	$(GO) test -race -shuffle=on -tags feature ./tests/feature/...
 
 ##@ Build
 

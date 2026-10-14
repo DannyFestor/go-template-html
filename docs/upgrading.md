@@ -9,6 +9,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Afterwards**: `make build image`.
 - Go and the two linters move together in one commit ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).
 
+## templ
+
+- **Pinned in**: the `tool github.com/a-h/templ/cmd/templ` directive and the `github.com/a-h/templ` require in `go.mod`, which pin the CLI and the runtime together.
+- **Bump**: `go get -tool github.com/a-h/templ/cmd/templ@<version>`.
+- **Afterwards**: `make generate`, which rewrites the version line of every `*_templ.go`, then `make fmt-check-templ test-go vite-build test-feature`. Commit the regenerated files with the bump.
+
 ## Go build image
 
 - **Pinned in**: the first `FROM` line of `Dockerfile`, as `golang:<patch-version>-<debian-release>`. The patch version is the one on the `toolchain` line of `go.mod`.
@@ -117,6 +123,18 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Pinned in**: the `packageManager` field of `package.json`.
 - **Bump**: write the new version into `packageManager` by hand. `vp migrate` leaves it alone.
 - **Afterwards**: `make setup`, which makes `bin/vp` download that pnpm and install from the unchanged lockfile.
+
+## htmx
+
+- **Pinned in**: `htmx.org` in `package.json`, at an exact version, and `pnpm-lock.yaml`.
+- **Bump**: `VP_HOME="$PWD/.vite-plus" bin/vp add htmx.org@<version>` with the exact version. While htmx 4 sits under npm's `next` dist-tag, `@latest` would install 2.x.
+- **Afterwards**: read the changelog for renamed events and attributes, such as `htmx:after:history:push` in `internal/asset/src/components/nav.ts` and `hx-boost:inherited` in `internal/view/layout/document.templ`. Then run `make typecheck-js test-js vite-build test-feature` and click through a boosted navigation in the browser.
+
+## Alpine
+
+- **Pinned in**: `@alpinejs/csp`, `@alpinejs/persist`, `@types/alpinejs` and `@types/alpinejs__persist` in `package.json`, and `pnpm-lock.yaml`.
+- **Bump**: `VP_HOME="$PWD/.vite-plus" bin/vp add @alpinejs/csp@<version> @alpinejs/persist@<version>`, and the `-D` type packages to the matching minor version.
+- **Afterwards**: read the release notes for the CSP build's expression support, then run `make typecheck-js test-js vite-build` and open the app layout in the browser.
 
 ## GitHub Actions
 
