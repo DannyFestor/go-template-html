@@ -1,0 +1,80 @@
+# Backing services for local development only. The app runs on the host.
+name: go-template-html
+
+x-healthcheck-timing: &healthcheck-timing
+  interval: 10s
+  start_period: 30s
+  start_interval: 1s
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-go_template_html}
+    ports:
+      - 127.0.0.1:${DB_PORT:-5432}:5432
+    volumes:
+      # Postgres 18 keeps its data in a versioned subdirectory, so the volume holds the parent.
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      <<: *healthcheck-timing
+      # Over TCP, because the entrypoint's temporary init server already answers on the socket.
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+
+  valkey:
+    image: valkey/valkey:9.1
+    ports:
+      - 127.0.0.1:${VALKEY_PORT:-6379}:6379
+    volumes:
+      - valkey:/data
+    healthcheck:
+      <<: *healthcheck-timing
+      # valkey-cli exits 0 on an error reply such as LOADING.
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+
+  # The image brings its own healthcheck.
+  mailpit:
+    image: axllent/mailpit:v1.31
+    ports:
+      - 127.0.0.1:${MAIL_PORT:-1025}:1025
+      - 127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025
+
+  pgweb:
+    image: sosedoff/pgweb:0.17.0
+    environment:
+      PGWEB_DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-go_template_html}?sslmode=disable
+    ports:
+      - 127.0.0.1:${PGWEB_PORT:-8081}:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-timing
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/api/info"]
+
+  valkey-admin:
+    image: valkey/valkey-admin:1.2.0
+    environment:
+      VALKEY_HOST: valkey
+      VALKEY_PORT: 6379
+    ports:
+      # Has no authentication, so it must never listen beyond localhost.
+      - 127.0.0.1:${VALKEY_ADMIN_PORT:-8082}:8080
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-timing
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/').then((r) => r.ok || process.exit(1))",
+        ]
+
+volumes:
+  postgres:
+  valkey:

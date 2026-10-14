@@ -123,6 +123,20 @@ hooks-install:
 github-setup: ## Create or update the GitHub repo's main ruleset and merge settings with gh, which needs admin rights
 	scripts/github-setup.sh .github/rulesets/main.json .github/merge-settings.json
 
+##@ Services
+
+.PHONY: services
+services: ## Start the services in compose.yaml in Docker and wait until all are healthy
+	docker compose up -d --wait
+
+.PHONY: down
+down: ## Stop and remove the service containers, keeping their data
+	docker compose down
+
+.PHONY: reset
+reset: ## Stop and remove the service containers and delete the Postgres and Valkey data
+	docker compose down -v
+
 ##@ Code
 
 .PHONY: generate

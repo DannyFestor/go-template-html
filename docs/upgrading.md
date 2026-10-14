@@ -26,6 +26,18 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 
 - **Afterwards**: `make image`, then `docker run --rm go-template-html:latest` to check the new base still runs `/app/web`.
 
+## Compose service images
+
+- **Pinned in**: the `image:` lines of `compose.yaml`. Postgres, Valkey and Mailpit are pinned to a major or minor tag, which keeps receiving patch releases. pgweb and Valkey Admin publish no such tags, so they are pinned to an exact version.
+- **Bump**: list the image's tags and change the tag in `compose.yaml`. Official images such as Postgres live under `library/`:
+
+  ```sh
+  curl -s 'https://hub.docker.com/v2/repositories/valkey/valkey/tags?page_size=50&ordering=last_updated' | jq -r '.results[].name'
+  ```
+
+  Check the version the image reports before you pick a tag, because a fresh minor tag can still point at a release candidate. A new Postgres major version can't read the old one's data, so run `make reset` first, which deletes it.
+- **Afterwards**: `make services`, which pulls the new tags, recreates their containers and waits until all are healthy. `docker compose pull` fetches the latest patch release of tags you didn't change.
+
 ## golangci-lint
 
 - **Pinned in**: `tools/golangci-lint.mod` and `tools/golangci-lint.sum`, alone so no other tool moves its dependencies ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)).

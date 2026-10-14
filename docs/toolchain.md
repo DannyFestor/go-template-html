@@ -177,6 +177,20 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `minimumReleaseAge` holds back versions published less than three days ago. `vp migrate` exempts the Vite+ toolchain packages, so a new `bin/vp` can install its own.
 - Dependency lifecycle scripts are blocked.
 
+## Compose services
+
+| | |
+| --- | --- |
+| Version | `postgres:18`, `valkey/valkey:9.1`, `axllent/mailpit:v1.31`, `sosedoff/pgweb:0.17.0` and `valkey/valkey-admin:1.2.0` in `compose.yaml` ([upgrading.md](upgrading.md#compose-service-images)) |
+| Role | Runs the backing services for local development ([ADR-0001](adr/0001-postgres-and-valkey-as-day-one-infrastructure.md)). `make services` starts them and returns once all are healthy, `make down` removes the containers and `make reset` also deletes the data. The app runs on the host. |
+
+- Every port binds to `127.0.0.1`, and a value in `.env` moves it: `DB_PORT`, `VALKEY_PORT`, `MAIL_PORT` (SMTP), `MAILPIT_UI_PORT`, `PGWEB_PORT` and `VALKEY_ADMIN_PORT`. Compose reads `.env` itself. Without one it uses the defaults that `.env.example` lists.
+- The Compose project name is the template's slug, so two clones never share containers or volumes. Only their ports can clash.
+- Postgres and Valkey keep their data in named volumes. Mailpit loses its mail whenever its container is removed.
+- `DB_USER`, `DB_PASSWORD` and `DB_NAME` only take effect when Postgres creates its data, so `make reset` after changing them.
+- pgweb opens already connected to `DB_NAME`. Its connection URL is assembled from the `DB_` values, so a password with URL-reserved characters breaks it.
+- Valkey Admin has no authentication.
+
 ## Production image
 
 | | |
