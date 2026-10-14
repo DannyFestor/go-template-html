@@ -14,6 +14,7 @@ Every developer command is a target in one self-documenting Makefile, and Go cod
 - The Makefile must run on GNU Make 3.81, the version macOS ships: no `.ONESHELL`, no `--output-sync`. `make dev` therefore interleaves the output of its parallel watchers.
 - Windows is supported only through WSL2.
 - `make generate` runs templ, sqlc and then `go generate ./...`. Only mockgen and `migrations.sum` use `//go:generate`.
+- A leaf target whose tool reads only its first file argument, as `templ fmt` and `templ generate -f` do, runs that one command once per file in `FILES`.
 - air, lefthook and sqlc share `tools/tools.mod`, because they are not as sensitive to version bumps as the linters ([ADR-0007](0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). templ and mockgen stay in the main `go.mod`, which keeps templ's CLI and runtime on the same version and lets `//go:generate` call mockgen without a modfile path.
 - The production image contains only `web`, `worker` and `migrate`.
 - The Go targets take a `GO_MODULE`, because the agent hooks in `tools/agenthook` are a module of their own. A target that reruns another one for that module, such as `lint-agenthook`, calls it through `$(MAKE)`: Make runs each prerequisite once per run, so `check` could not lint both modules through prerequisites.

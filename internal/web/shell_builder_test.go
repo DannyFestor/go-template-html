@@ -33,8 +33,8 @@ func TestBuildFillsTheShellWithTheAppNameAndTheAppEntrysAssets(t *testing.T) {
 	t.Parallel()
 
 	assets := fakeAssets{
-		scripts:     map[string]string{appEntry: "/assets/app-CglV_xfI.js"},
-		stylesheets: map[string][]string{appEntry: {"/assets/app-CXq9PIMN.css"}},
+		scripts:     map[string]string{appEntry: "/assets/app-nx4752wa.js"},
+		stylesheets: map[string][]string{appEntry: {"/assets/app-fimgy6vt.css"}},
 		err:         nil,
 	}
 
@@ -43,8 +43,8 @@ func TestBuildFillsTheShellWithTheAppNameAndTheAppEntrysAssets(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, view.Shell{
 		AppName:     "Acme Shop",
-		Script:      "/assets/app-CglV_xfI.js",
-		Stylesheets: []string{"/assets/app-CXq9PIMN.css"},
+		Script:      "/assets/app-nx4752wa.js",
+		Stylesheets: []string{"/assets/app-fimgy6vt.css"},
 		User:        view.ShellUser{Name: "", Email: "", Initials: ""},
 	}, shell)
 }

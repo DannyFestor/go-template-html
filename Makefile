@@ -75,6 +75,9 @@ go-package-dirs = $(patsubst $(GO_MODULE)/%,./%,$(sort $(dir $(1))))
 GO_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(call go-files-beside,$(FILES))),./...)
 # go build refuses a package that only holds tests, which test-go compiles anyway.
 GO_BUILD_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(filter-out %_test.go,$(call go-files-beside,$(FILES)))),./...)
+# These hold only tagged tests, which go test refuses to build when named without their tag. ./... skips them.
+TAGGED_TEST_DIRS := ./tests/feature/ ./tests/e2e/
+UNTAGGED_TEST_PACKAGES = $(filter-out $(TAGGED_TEST_DIRS),$(GO_PACKAGES))
 on-packages = $(if $(2),$(1) $(2))
 
 AGENTHOOK_MODULE := tools/agenthook
@@ -264,7 +267,7 @@ test: test-go test-agenthook test-js ## Run the Go and JS tests that need no Doc
 
 .PHONY: test-go
 test-go: ## Run the Go unit, architecture and tooling tests in GO_MODULE, or only the packages holding FILES
-	$(call on-packages,$(GO) test -race -shuffle=on,$(GO_PACKAGES))
+	$(call on-packages,$(GO) test -race -shuffle=on,$(UNTAGGED_TEST_PACKAGES))
 
 .PHONY: test-agenthook
 test-agenthook: ## Run the agent hook tests in tools/agenthook

@@ -47,7 +47,7 @@ func App(shell view.Shell) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"disclosure\" x-on:htmx:after:history:push.document=\"close()\" class=\"flex min-h-full\"><aside x-data=\"nav\" x-bind:class=\"open ? 'flex' : 'hidden'\" class=\"fixed inset-y-0 z-30 w-64 shrink-0 flex-col gap-4 border-r border-zinc-200 bg-zinc-50 p-4 lg:static lg:flex dark:border-zinc-700 dark:bg-zinc-950\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"disclosure\" x-on:htmx:after:history:push.document=\"close()\" class=\"flex min-h-full\"><aside x-data=\"nav\" x-bind:data-open=\"open\" class=\"fixed inset-y-0 z-30 hidden w-64 shrink-0 flex-col gap-4 border-r border-zinc-200 bg-zinc-50 p-4 data-open:flex lg:static lg:flex dark:border-zinc-700 dark:bg-zinc-950\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

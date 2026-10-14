@@ -22,11 +22,11 @@ func NewImmutable(files fs.FS) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{files: files, manifests: fixedManifest{manifest: loaded}, caching: immutable()}, nil
+	return &Server{files: files, manifests: fixedManifest{manifest: loaded}, caching: fixedBuildCaching()}, nil
 }
 
 func NewLive(files fs.FS) *Server {
-	return &Server{files: files, manifests: liveManifest{files: files}, caching: uncached()}
+	return &Server{files: files, manifests: liveManifest{files: files}, caching: liveBuildCaching()}
 }
 
 func (s *Server) ScriptURL(source string) (string, error) {

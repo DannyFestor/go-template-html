@@ -17,11 +17,11 @@ const (
 	entry    = "internal/asset/src/app.ts"
 	manifest = `{
   "internal/asset/src/app.ts": {
-    "file": "assets/app-CglV_xfI.js",
+    "file": "assets/app-nx4752wa.js",
     "name": "app",
     "src": "internal/asset/src/app.ts",
     "isEntry": true,
-    "css": ["assets/app-CXq9PIMN.css"]
+    "css": ["assets/app-fimgy6vt.css"]
   }
 }`
 )
@@ -34,7 +34,7 @@ func TestScriptURLResolvesTheEntrysHashedFile(t *testing.T) {
 	url, err := server.ScriptURL(entry)
 
 	require.NoError(t, err)
-	assert.Equal(t, "/assets/app-CglV_xfI.js", url)
+	assert.Equal(t, "/assets/app-nx4752wa.js", url)
 }
 
 func TestStylesheetURLsResolveTheEntrysHashedCSS(t *testing.T) {
@@ -45,7 +45,7 @@ func TestStylesheetURLsResolveTheEntrysHashedCSS(t *testing.T) {
 	urls, err := server.StylesheetURLs(entry)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/assets/app-CXq9PIMN.css"}, urls)
+	assert.Equal(t, []string{"/assets/app-fimgy6vt.css"}, urls)
 }
 
 func TestURLsFailForAnEntryMissingFromTheManifest(t *testing.T) {
@@ -74,7 +74,7 @@ func TestNewImmutableFailsWithoutAManifest(t *testing.T) {
 func TestImmutableServesTheCurrentFileForAYear(t *testing.T) {
 	t.Parallel()
 
-	response := get(t, newImmutable(t, dist()), "/assets/app-CXq9PIMN.css")
+	response := get(t, newImmutable(t, dist()), "/assets/app-fimgy6vt.css")
 
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "body{}", response.Body.String())
@@ -85,7 +85,7 @@ func TestImmutableServesTheCurrentFileForAYear(t *testing.T) {
 func TestImmutableServesTheCurrentFileUncachedForAnOutdatedHash(t *testing.T) {
 	t.Parallel()
 
-	response := get(t, newImmutable(t, dist()), "/assets/app-Old0Hash.js")
+	response := get(t, newImmutable(t, dist()), "/assets/app-0ld0hash.js")
 
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "console.log('app')", response.Body.String())
@@ -97,10 +97,10 @@ func TestServesNothingTheBuildDidNotEmit(t *testing.T) {
 
 	files := dist()
 	files[".gitkeep"] = file("")
-	files["assets/admin-CglV_xfI.js"] = file("console.log('admin')")
+	files["assets/admin-nx4752wa.js"] = file("console.log('admin')")
 	server := newImmutable(t, files)
 
-	for _, path := range []string{"/manifest.json", "/.gitkeep", "/assets/admin-CglV_xfI.js", "/assets/app.js"} {
+	for _, path := range []string{"/manifest.json", "/.gitkeep", "/assets/admin-nx4752wa.js", "/assets/app.js"} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 
@@ -114,12 +114,12 @@ func TestLiveResolvesURLsFromTheLatestBuild(t *testing.T) {
 
 	files := dist()
 	server := asset.NewLive(files)
-	files["manifest.json"] = file(`{"internal/asset/src/app.ts": {"file": "assets/app-N3wB1ld0.js"}}`)
+	files["manifest.json"] = file(`{"internal/asset/src/app.ts": {"file": "assets/app-n3wb1ld0.js"}}`)
 
 	url, err := server.ScriptURL(entry)
 
 	require.NoError(t, err)
-	assert.Equal(t, "/assets/app-N3wB1ld0.js", url)
+	assert.Equal(t, "/assets/app-n3wb1ld0.js", url)
 }
 
 func TestLiveForbidsCachingAnyFile(t *testing.T) {
@@ -127,7 +127,7 @@ func TestLiveForbidsCachingAnyFile(t *testing.T) {
 
 	server := asset.NewLive(dist())
 
-	for _, path := range []string{"/assets/app-CglV_xfI.js", "/assets/app-Old0Hash.js"} {
+	for _, path := range []string{"/assets/app-nx4752wa.js", "/assets/app-0ld0hash.js"} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 
@@ -149,7 +149,7 @@ func TestLiveFailsWhileTheManifestIsMissing(t *testing.T) {
 	_, err := server.ScriptURL(entry)
 
 	require.ErrorContains(t, err, "manifest.json")
-	assert.Equal(t, http.StatusInternalServerError, get(t, server, "/assets/app-CglV_xfI.js").Code)
+	assert.Equal(t, http.StatusInternalServerError, get(t, server, "/assets/app-nx4752wa.js").Code)
 }
 
 func newImmutable(t *testing.T, files fstest.MapFS) *asset.Server {
@@ -173,8 +173,8 @@ func get(t *testing.T, server http.Handler, path string) *httptest.ResponseRecor
 func dist() fstest.MapFS {
 	return fstest.MapFS{
 		"manifest.json":           file(manifest),
-		"assets/app-CglV_xfI.js":  file("console.log('app')"),
-		"assets/app-CXq9PIMN.css": file("body{}"),
+		"assets/app-nx4752wa.js":  file("console.log('app')"),
+		"assets/app-fimgy6vt.css": file("body{}"),
 	}
 }
 

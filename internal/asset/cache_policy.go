@@ -5,11 +5,11 @@ type cachePolicy struct {
 	stale   string
 }
 
-func immutable() cachePolicy {
+func fixedBuildCaching() cachePolicy {
 	return cachePolicy{current: "public, max-age=31536000, immutable", stale: "no-cache"}
 }
 
-func uncached() cachePolicy {
+func liveBuildCaching() cachePolicy {
 	return cachePolicy{current: "no-store", stale: "no-store"}
 }
 
