@@ -15,6 +15,9 @@ GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
 # Only the root module has templ files, so templ runs there whatever GO_MODULE names.
 TEMPL := go tool templ
+# templ fmt and generate -f act on their first file only, so FILES gets one run per file, or the whole tree without it.
+# $(1) templ arguments before each file, $(2) templ arguments for the whole tree
+templ-on-files = $(if $(FILES),$(foreach file,$(FILES),$(TEMPL) $(1) $(file) &&) true,$(TEMPL) $(2))
 # Deferred, because the image's build context has no .git for git ls-files to read.
 SHELL_SCRIPTS = $(shell git ls-files '*.sh')
 
@@ -145,8 +148,8 @@ reset: ## Stop and remove the service containers and delete the Postgres and Val
 generate: generate-templ generate-go ## Regenerate the generated code
 
 .PHONY: generate-templ
-generate-templ: ## Regenerate the Go code of every templ file, or only of the one templ file in FILES
-	$(TEMPL) generate $(if $(FILES),-f $(FILES))
+generate-templ: ## Regenerate the Go code of every templ file, or only of the templ files in FILES
+	$(call templ-on-files,generate -f,generate)
 
 .PHONY: generate-go
 generate-go: ## Run go generate in GO_MODULE
@@ -165,7 +168,7 @@ fmt-go: ## Format Go code, or only FILES, in GO_MODULE
 
 .PHONY: fmt-templ
 fmt-templ: ## Format templ files, or only FILES
-	$(TEMPL) fmt $(or $(FILES),.)
+	$(call templ-on-files,fmt,fmt .)
 
 .PHONY: fmt-check
 fmt-check: fmt-check-go fmt-check-templ fmt-check-js ## Fail if Go, templ or frontend code is not formatted
@@ -177,7 +180,7 @@ fmt-check-go: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
 # templ has no dry run: -fail formats before it fails, and -stdout reports every file as changed.
 .PHONY: fmt-check-templ
 fmt-check-templ: ## Fail if templ files, or only FILES, are not formatted, formatting them in place
-	$(TEMPL) fmt -fail $(or $(FILES),.)
+	$(call templ-on-files,fmt -fail,fmt -fail .)
 
 .PHONY: fmt-check-js
 fmt-check-js: bin/vp ## Fail if TypeScript, CSS, JSON or YAML, or only FILES, is not formatted
