@@ -60,6 +60,9 @@ linters:
       allowed:
         # An empty allowlist allows every module, so the list starts with the main module.
         - module: github.com/DannyFestor/go-template-html
+        - module: github.com/caarlos0/env/v11
+        - module: github.com/joho/godotenv
+        - module: github.com/stretchr/testify
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:
