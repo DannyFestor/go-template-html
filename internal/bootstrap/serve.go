@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,31 +10,47 @@ import (
 )
 
 func Serve(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
-	return runUntilDone(ctx, shutdownTimeout, func() error { return server.Serve(listener) }, server.Shutdown)
+	return serveUntilDone(
+		ctx,
+		shutdownTimeout,
+		func() error { return server.Serve(listener) },
+		shutdownOrClose(server),
+	)
 }
 
-func runUntilDone(
+func shutdownOrClose(server *http.Server) func(context.Context) error {
+	return func(ctx context.Context) error {
+		err := server.Shutdown(ctx)
+		if err != nil {
+			return errors.Join(err, server.Close())
+		}
+
+		return nil
+	}
+}
+
+func serveUntilDone(
 	ctx context.Context,
-	stopTimeout time.Duration,
-	run func() error,
-	stop func(context.Context) error,
+	shutdownTimeout time.Duration,
+	serve func() error,
+	shutdown func(context.Context) error,
 ) error {
 	failed := make(chan error, 1)
 
-	go func() { failed <- run() }()
+	go func() { failed <- serve() }()
 
 	select {
 	case err := <-failed:
-		return fmt.Errorf("run: %w", err)
+		return fmt.Errorf("serve: %w", err)
 	case <-ctx.Done():
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
 
-	err := stop(stopCtx)
+	err := shutdown(shutdownCtx)
 	if err != nil {
-		return fmt.Errorf("stop within %s: %w", stopTimeout, err)
+		return fmt.Errorf("shut down within %s: %w", shutdownTimeout, err)
 	}
 
 	return nil

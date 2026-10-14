@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type Environment string
@@ -14,10 +15,14 @@ const (
 
 var errUnknownEnvironment = errors.New("unknown environment")
 
+func environments() []Environment {
+	return []Environment{EnvironmentLocal, EnvironmentProduction}
+}
+
 func (e *Environment) UnmarshalText(text []byte) error {
 	candidate := Environment(text)
-	if candidate != EnvironmentLocal && candidate != EnvironmentProduction {
-		return fmt.Errorf("%w %q, want %q or %q", errUnknownEnvironment, text, EnvironmentLocal, EnvironmentProduction)
+	if !slices.Contains(environments(), candidate) {
+		return fmt.Errorf("%w %q, want one of %q", errUnknownEnvironment, text, environments())
 	}
 
 	*e = candidate

@@ -26,6 +26,8 @@ type process func(ctx context.Context, config Config, logger *slog.Logger) error
 func run(serve process) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// Restoring the default handling after the first signal lets a second one kill a drain that hangs.
+	context.AfterFunc(ctx, stop)
 
 	config, err := LoadConfig(dotenvPath, os.Environ())
 	if err != nil {
