@@ -1,0 +1,29 @@
+package home
+
+import "github.com/DannyFestor/go-template-html/internal/route"
+
+const (
+	toolchainDocs = "https://github.com/DannyFestor/go-template-html/blob/main/docs/toolchain.md"
+	decisionDocs  = "https://github.com/DannyFestor/go-template-html/tree/main/docs/adr"
+)
+
+templ Page() {
+	<div class="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+		<header class="mx-auto flex max-w-5xl justify-end gap-2 p-6 text-sm">
+			<a href={ templ.SafeURL(route.Login) } class="px-4 py-1.5">Log in</a>
+			<a href={ templ.SafeURL(route.Register) } class="rounded-md border border-zinc-300 px-4 py-1.5 dark:border-zinc-700">
+				Register
+			</a>
+		</header>
+		<section class="mx-auto mt-10 max-w-5xl rounded-xl border border-zinc-200 bg-white p-10 dark:border-zinc-700 dark:bg-zinc-900">
+			<h1 class="text-2xl font-semibold">Let's get started</h1>
+			<p class="mt-2 text-zinc-500">
+				A server-rendered Go starter with authentication, settings and a job queue.
+			</p>
+			<ul class="mt-6 flex flex-col gap-2 text-sm">
+				<li><a href={ templ.SafeURL(toolchainDocs) } class="underline">Read the documentation</a></li>
+				<li><a href={ templ.SafeURL(decisionDocs) } class="underline">Browse the architecture decisions</a></li>
+			</ul>
+		</section>
+	</div>
+}

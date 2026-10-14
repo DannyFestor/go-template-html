@@ -23,6 +23,8 @@ export default defineConfig({
     assetsInlineLimit: 0,
     rolldownOptions: {
       input: `${assetDir}/src/app.ts`,
+      // internal/asset finds a file's [name] before its last "-", which the default base64 hashes can contain.
+      output: { hashCharacters: "base36" },
     },
   },
   test: {

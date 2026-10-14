@@ -12,7 +12,7 @@ func TestEditingAGoFileInALinkedWorktreeRunsTheChecksOfThatWorktreesModule(t *te
 	requirePassed(t, runHook(t, "post-tool-use", "post_tool_use_edit", editCall(repo, path, "package b", "package a")))
 
 	requireMakeLog(t, worktree,
-		"fmt GO_MODULE=. FILES=internal/a/a.go",
+		"fmt-go GO_MODULE=. FILES=internal/a/a.go",
 		"vet GO_MODULE=. FILES=internal/a/a.go",
 		"lint-wip GO_MODULE=. FILES=internal/a/a.go",
 	)
@@ -32,7 +32,7 @@ func TestEditingAGoFileInANestedModuleRunsTheChecksInThatModule(t *testing.T) {
 	)
 
 	requireMakeLog(t, repo,
-		"fmt GO_MODULE=tools/agenthook FILES=internal/shell/parse.go",
+		"fmt-go GO_MODULE=tools/agenthook FILES=internal/shell/parse.go",
 		"vet GO_MODULE=tools/agenthook FILES=internal/shell/parse.go",
 		"lint-wip GO_MODULE=tools/agenthook FILES=internal/shell/parse.go",
 	)
@@ -49,7 +49,7 @@ func TestAFailingPostEditCheckIsFedBackToTheAgent(t *testing.T) {
 
 	requireBlocked(t, result, "declared and not used: n")
 	requireBlocked(t, result, "make vet")
-	requireMakeLog(t, repo, "fmt GO_MODULE=. FILES=internal/a/a.go", "vet GO_MODULE=. FILES=internal/a/a.go")
+	requireMakeLog(t, repo, "fmt-go GO_MODULE=. FILES=internal/a/a.go", "vet GO_MODULE=. FILES=internal/a/a.go")
 }
 
 func TestWritingATypeScriptFileRunsOxfmtAndOxlintOnIt(t *testing.T) {
@@ -64,6 +64,25 @@ func TestWritingATypeScriptFileRunsOxfmtAndOxlintOnIt(t *testing.T) {
 	requireMakeLog(t, repo,
 		"fmt-js GO_MODULE= FILES=internal/asset/src/menu.ts",
 		"lint-js GO_MODULE= FILES=internal/asset/src/menu.ts",
+	)
+}
+
+func TestEditingATemplFileFormatsAndGeneratesItThenChecksItsPackage(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	path := writeFile(t, repo, "internal/view/home/page.templ", "package home\n")
+
+	requirePassed(
+		t,
+		runHook(t, "post-tool-use", "post_tool_use_edit", editCall(repo, path, "package x", "package home")),
+	)
+
+	requireMakeLog(t, repo,
+		"fmt-templ GO_MODULE= FILES=internal/view/home/page.templ",
+		"generate-templ GO_MODULE= FILES=internal/view/home/page.templ",
+		"vet GO_MODULE=. FILES=internal/view/home/page_templ.go",
+		"lint-wip GO_MODULE=. FILES=internal/view/home/page_templ.go",
 	)
 }
 

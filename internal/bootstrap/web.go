@@ -7,8 +7,11 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
 	"github.com/DannyFestor/go-template-html/internal/handler/health"
+	"github.com/DannyFestor/go-template-html/internal/handler/home"
+	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
 func RunWeb() int {
@@ -16,6 +19,11 @@ func RunWeb() int {
 }
 
 func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
+	handler, err := NewWebHandler(config, logger)
+	if err != nil {
+		return err
+	}
+
 	var listenConfig net.ListenConfig
 
 	listener, err := listenConfig.Listen(ctx, "tcp", config.HTTP.Addr)
@@ -28,16 +36,25 @@ func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
 		slog.String("addr", listener.Addr().String()),
 	)
 
-	server := newWebServer(config.HTTP, webRoutes(), logger)
+	server := newWebServer(config.HTTP, handler, logger)
 
 	return Serve(ctx, server, listener, config.App.ShutdownTimeout)
 }
 
-func webRoutes() http.Handler {
+func NewWebHandler(config Config, logger *slog.Logger) (*http.ServeMux, error) {
+	assets, err := newAssetServer(config.App.Env)
+	if err != nil {
+		return nil, err
+	}
+
+	shells := web.NewShellBuilder(config.App.Name, assets)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Liveness)
+	mux.Handle("GET /assets/", assets)
+	mux.Handle("GET /{$}", home.NewShow(shells, logreport.New(logger)))
 
-	return mux
+	return mux, nil
 }
 
 func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.Server {

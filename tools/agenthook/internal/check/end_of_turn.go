@@ -41,11 +41,24 @@ func goFilesByModule(root string, editedPaths []string) map[string][]string {
 	filesByModule := map[string][]string{}
 
 	for _, rel := range editedPaths {
-		if isGo(rel) {
-			module := goModule(root, rel)
-			filesByModule[module] = append(filesByModule[module], moduleRel(module, rel))
+		goFile, ok := goFileOf(rel)
+		if ok {
+			module := goModule(root, goFile)
+			filesByModule[module] = append(filesByModule[module], moduleRel(module, goFile))
 		}
 	}
 
 	return filesByModule
+}
+
+// A templ file stands for the Go file generated from it, because go-arch-lint reports its imports against that file.
+func goFileOf(rel string) (string, bool) {
+	switch {
+	case isGo(rel):
+		return rel, true
+	case isTempl(rel):
+		return generatedFromTempl(rel), true
+	default:
+		return "", false
+	}
 }

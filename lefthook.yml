@@ -10,7 +10,11 @@ pre-commit:
       run: make -s refuse-commit-on-main
     - name: fmt-go
       glob: "**/*.go"
-      run: make -s fmt FILES="{staged_files}"
+      run: make -s fmt-go FILES="{staged_files}"
+      stage_fixed: true
+    - name: fmt-templ
+      glob: "**/*.templ"
+      run: make -s fmt-templ FILES="{staged_files}"
       stage_fixed: true
     - name: fmt-js
       glob:

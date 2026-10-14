@@ -1,0 +1,56 @@
+package component
+
+import (
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view"
+)
+
+templ UserMenu(user view.ShellUser) {
+	<div x-data="disclosure" x-on:click.outside="close()" x-on:keydown.escape="close()" class="relative">
+		<button
+			type="button"
+			x-on:click="toggle()"
+			x-bind:aria-expanded="open"
+			class="flex w-full items-center gap-2 rounded-lg p-2 text-sm hover:bg-zinc-200/60 dark:hover:bg-zinc-800"
+		>
+			@userInitials(user)
+			<span id="user-menu-name" class="truncate">{ user.Name }</span>
+			<span class="ml-auto opacity-50">
+				@Icon(IconChevronUpDown)
+			</span>
+		</button>
+		<div
+			x-show="open"
+			x-cloak
+			class="absolute left-0 z-40 mt-2 w-60 rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+		>
+			<div class="flex items-center gap-2 px-2 py-2">
+				@userInitials(user)
+				<span>
+					<span class="block font-medium">{ user.Name }</span>
+					<span class="block text-xs text-zinc-500">{ user.Email }</span>
+				</span>
+			</div>
+			<hr class="my-1 border-zinc-200 dark:border-zinc-700"/>
+			<a href={ templ.SafeURL(route.SettingsProfile) } class={ menuItemClass }>
+				@Icon(IconSettings)
+				Settings
+			</a>
+			<hr class="my-1 border-zinc-200 dark:border-zinc-700"/>
+			<form method="post" action={ templ.SafeURL(route.Logout) }>
+				<button type="submit" class={ menuItemClass + " w-full" }>
+					@Icon(IconLogout)
+					Log out
+				</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ userInitials(user view.ShellUser) {
+	<span class="grid size-8 shrink-0 place-items-center rounded-md bg-zinc-200 font-semibold dark:bg-zinc-700">
+		{ user.Initials }
+	</span>
+}
+
+const menuItemClass = "flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"

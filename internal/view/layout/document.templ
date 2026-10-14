@@ -1,0 +1,28 @@
+package layout
+
+import "github.com/DannyFestor/go-template-html/internal/view"
+
+templ document(shell view.Shell, mainID string) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		@head(shell)
+		<body
+			class="h-full bg-white text-zinc-900 antialiased dark:bg-zinc-900 dark:text-zinc-100"
+			hx-boost:inherited={ boostConfig(mainID) }
+		>
+			{ children... }
+		</body>
+	</html>
+}
+
+templ head(shell view.Shell) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>{ shell.AppName }</title>
+		for _, stylesheet := range shell.Stylesheets {
+			<link rel="stylesheet" href={ templ.SafeURL(stylesheet) }/>
+		}
+		<script type="module" src={ templ.SafeURL(shell.Script) }></script>
+	</head>
+}
