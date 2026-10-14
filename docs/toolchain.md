@@ -104,10 +104,10 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | goquery `github.com/PuerkitoBio/goquery` in the main `go.mod`, with testify |
 | Role | Exercise the app through real HTTP requests in `tests/feature/`, tagged `feature` (`make test-feature`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job. |
 
-- The harness builds the app in-process with `bootstrap.NewWebHandler` in production mode and serves it from an `httptest.Server`. Responses are read in full, and HTML is parsed into goquery documents.
+- The harness builds the app in-process with `bootstrap.NewWebApp` in production mode and serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect and a form body. Responses are read in full, and HTML is parsed into goquery documents.
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
-- goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` only.
+- goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` and in `web`, whose tests parse the rendered pages.
 
 ## shellcheck
 

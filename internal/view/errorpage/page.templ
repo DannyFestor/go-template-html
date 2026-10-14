@@ -1,0 +1,19 @@
+package errorpage
+
+import (
+	"strconv"
+
+	"github.com/DannyFestor/go-template-html/internal/route"
+)
+
+templ Page(model Model) {
+	<section class="mx-auto mt-24 max-w-xl px-6 text-center">
+		<p class="text-sm font-semibold text-zinc-500">{ strconv.Itoa(model.Status) }</p>
+		<h1 class="mt-2 text-2xl font-semibold">{ model.Title }</h1>
+		<p class="mt-2 text-zinc-500">{ model.Message }</p>
+		if model.Detail != "" {
+			<pre class="mt-6 overflow-x-auto rounded-md bg-zinc-100 p-4 text-left text-xs dark:bg-zinc-800">{ model.Detail }</pre>
+		}
+		<a href={ templ.SafeURL(route.Home) } class="mt-6 inline-block underline">Go home</a>
+	</section>
+}

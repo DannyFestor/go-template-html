@@ -133,6 +133,7 @@ deps:
       - domain
   request:
     mayDependOn:
+      - request
       - domain
       - validate
   validate:
@@ -155,6 +156,7 @@ deps:
       - action
   middleware:
     mayDependOn:
+      - middleware
       - domain
       - web
       - route
@@ -164,6 +166,9 @@ deps:
       - domain
       - view
       - route
+    # depguard keeps it in the tests, which parse the rendered pages.
+    canUse:
+      - goquery
   asset:
     mayDependOn:
       - asset
@@ -226,6 +231,8 @@ deps:
       - factory
       - domain
       - route
+      # Mounts probe routes on the app's mux through the Responder.
+      - web
     canUse:
       - goquery
   e2e-test:
