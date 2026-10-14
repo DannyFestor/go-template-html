@@ -2,6 +2,8 @@ package route
 
 const (
 	Home               = "/"
+	Healthz            = "/healthz"
+	Assets             = "/assets/"
 	Login              = "/login"
 	Register           = "/register"
 	Logout             = "/logout"

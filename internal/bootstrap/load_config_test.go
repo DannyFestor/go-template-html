@@ -28,6 +28,10 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 		HTTP: bootstrap.HTTP{
 			Addr:              ":8080",
 			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       15 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       120 * time.Second,
+			MaxBodyBytes:      1 << 20,
 		},
 		Log: bootstrap.Log{Level: slog.LevelInfo},
 	}, config)

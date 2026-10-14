@@ -9,17 +9,21 @@ import (
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
-	"github.com/DannyFestor/go-template-html/internal/handler/health"
-	"github.com/DannyFestor/go-template-html/internal/handler/home"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
+
+type WebApp struct {
+	Mux       *http.ServeMux
+	Responder *web.Responder
+	handler   http.Handler
+}
 
 func RunWeb() int {
 	return run(serveWeb)
 }
 
 func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
-	handler, err := NewWebHandler(config, logger)
+	app, err := NewWebApp(config, logger)
 	if err != nil {
 		return err
 	}
@@ -36,25 +40,33 @@ func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
 		slog.String("addr", listener.Addr().String()),
 	)
 
-	server := newWebServer(config.HTTP, handler, logger)
+	server := newWebServer(config.HTTP, app.Handler(), logger)
 
 	return Serve(ctx, server, listener, config.App.ShutdownTimeout)
 }
 
-func NewWebHandler(config Config, logger *slog.Logger) (*http.ServeMux, error) {
+func NewWebApp(config Config, logger *slog.Logger) (*WebApp, error) {
 	assets, err := newAssetServer(config.App.Env)
 	if err != nil {
 		return nil, err
 	}
 
-	shells := web.NewShellBuilder(config.App.Name, assets)
+	responder := web.NewResponder(
+		web.NewShellBuilder(config.App.Name, assets),
+		logreport.New(logger),
+		config.App.Env == EnvironmentLocal,
+	)
+	mux := newWebMux(assets, responder)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", health.Liveness)
-	mux.Handle("GET /assets/", assets)
-	mux.Handle("GET /{$}", home.NewShow(shells, logreport.New(logger)))
+	return &WebApp{
+		Mux:       mux,
+		Responder: responder,
+		handler:   withMiddleware(mux, webMiddleware(config.HTTP, logger, responder)),
+	}, nil
+}
 
-	return mux, nil
+func (a *WebApp) Handler() http.Handler {
+	return a.handler
 }
 
 func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.Server {
@@ -63,10 +75,10 @@ func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.
 		Handler:                      handler,
 		DisableGeneralOptionsHandler: false,
 		TLSConfig:                    nil,
-		ReadTimeout:                  0,
+		ReadTimeout:                  config.ReadTimeout,
 		ReadHeaderTimeout:            config.ReadHeaderTimeout,
-		WriteTimeout:                 0,
-		IdleTimeout:                  0,
+		WriteTimeout:                 config.WriteTimeout,
+		IdleTimeout:                  config.IdleTimeout,
 		MaxHeaderBytes:               0,
 		MaxHeaderValueCount:          0,
 		TLSNextProto:                 nil,
