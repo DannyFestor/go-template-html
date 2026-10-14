@@ -13,6 +13,7 @@ GO_ARCH_LINT := go tool -modfile=tools/go-arch-lint.mod go-arch-lint
 GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
+AIR := go tool -modfile=tools/tools.mod air
 # Only the root module has templ files, so templ runs there whatever GO_MODULE names.
 TEMPL := go tool templ
 # templ fmt and generate -f act on their first file only, so FILES gets one run per file, or the whole tree without it.
@@ -62,6 +63,10 @@ $(eval $(call pinned-binary,vp,$$(VP_URL),vp))
 VP := VP_HOME=$(CURDIR)/.vite-plus bin/vp
 
 PROTECTED_REF := refs/heads/main
+
+# The templ proxy forwards to the port the app listens on, which HTTP_ADDR in .env moves away from the app's default.
+HTTP_ADDR ?= :8080
+DEV_APP_URL = http://localhost:$(lastword $(subst :, ,$(HTTP_ADDR)))
 
 # Kept in variables, because a literal comma would split the $(call) and $(if) arguments they are used in.
 TEST_TAGS := integration,feature,e2e
@@ -144,6 +149,27 @@ down: ## Stop and remove the service containers, keeping their data
 .PHONY: reset
 reset: ## Stop and remove the service containers and delete the Postgres and Valkey data
 	docker compose down -v
+
+##@ Dev
+
+# bin/vp is fetched up front, so its download does not interleave with the output of the parallel watchers.
+.PHONY: dev
+dev: bin/vp services generate ## Start the services, then rebuild, restart and reload the browser on every change
+	$(MAKE) -j watch-templ watch-vite watch-assets
+
+.PHONY: watch-templ
+watch-templ: ## Regenerate templ files, rerun cmd/web on Go changes and reload the browser through the templ proxy
+	$(TEMPL) generate --watch --proxy=$(DEV_APP_URL) --cmd="go run ./cmd/web"
+
+.PHONY: watch-vite
+watch-vite: bin/vp ## Rebuild the frontend assets into internal/asset/dist/ on every change
+	$(VP) build --watch
+
+# air only has to tell the templ proxy to reload, so `true` stands in for the binary it expects to run after each build.
+.PHONY: watch-assets
+watch-assets: ## Reload the browser through the templ proxy whenever internal/asset/dist/ changes
+	$(AIR) --build.cmd "$(TEMPL) generate --notify-proxy" --build.entrypoint true \
+		--build.include_dir internal/asset/dist --build.include_ext css,js,json
 
 ##@ Code
 
@@ -298,10 +324,6 @@ build-packages:
 .PHONY: vite-build
 vite-build: bin/vp ## Build the frontend assets into internal/asset/dist/
 	$(VP) build
-
-.PHONY: watch-vite
-watch-vite: bin/vp ## Rebuild the frontend assets into internal/asset/dist/ on every change
-	$(VP) build --watch
 
 .PHONY: image
 image: ## Build the production image for the host platform, tagged IMAGE_NAME:VERSION and IMAGE_NAME:latest

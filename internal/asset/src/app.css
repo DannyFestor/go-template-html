@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Each build rewrites dist/.gitkeep, which git does not ignore, so watching it would rebuild without end. */
+@source not "../dist";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 [x-cloak] {
