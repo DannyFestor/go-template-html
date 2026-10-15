@@ -23,6 +23,10 @@ pre-commit:
         - "**/*.json"
       run: make -s fmt-js FILES="{staged_files}"
       stage_fixed: true
+    - name: fmt-sql
+      glob: "**/*.sql"
+      run: make -s fmt-sql FILES="{staged_files}"
+      stage_fixed: true
     - name: lint-shell
       glob: "**/*.sh"
       run: make -s lint-shell FILES="{staged_files}"

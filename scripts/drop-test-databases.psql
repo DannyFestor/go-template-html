@@ -1,0 +1,5 @@
+SELECT format('DROP DATABASE %I WITH (FORCE)', datname)
+FROM pg_database
+WHERE starts_with(datname, :'db_name' || '_t_')
+  OR starts_with(datname, :'db_name' || '_tpl_')
+\gexec

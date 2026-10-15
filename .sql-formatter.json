@@ -1,0 +1,8 @@
+{
+  "language": "postgresql",
+  "paramTypes": {
+    "numbered": ["$"],
+    "named": ["@"],
+    "custom": [{ "regex": "sqlc\\.[a-z_]+\\([^()]*\\)" }]
+  }
+}

@@ -27,7 +27,7 @@ func (s Session) BeforeEdit(edit FileEdit) (decision.Decision, error) {
 		return decision.Passed(), nil
 	}
 
-	original, err := readOptionalFile(edit.Path)
+	original, exists, err := readOptionalFile(edit.Path)
 	if err != nil {
 		return decision.Passed(), err
 	}
@@ -37,9 +37,15 @@ func (s Session) BeforeEdit(edit FileEdit) (decision.Decision, error) {
 		removed = original
 	}
 
-	judge := editrule.NewJudge(session.Open(found.GitDir, s.id))
+	judge := editrule.NewJudge(session.Open(found.GitDir, s.id), found)
 
-	judged, err := judge.Edit(editrule.Edit{Path: rel, Original: original, Removed: removed, Inserted: edit.Inserted})
+	judged, err := judge.Edit(editrule.Edit{
+		Path:     rel,
+		Original: original,
+		Removed:  removed,
+		Inserted: edit.Inserted,
+		Created:  !exists,
+	})
 	if err != nil {
 		return judged, fmt.Errorf("remember the comments: %w", err)
 	}
@@ -47,15 +53,15 @@ func (s Session) BeforeEdit(edit FileEdit) (decision.Decision, error) {
 	return judged, nil
 }
 
-func readOptionalFile(path string) (string, error) {
+func readOptionalFile(path string) (string, bool, error) {
 	content, err := os.ReadFile(path) //nolint:gosec // Reading the file the agent is about to edit is the point.
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
+		return "", false, nil
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("read the file before the edit: %w", err)
+		return "", false, fmt.Errorf("read the file before the edit: %w", err)
 	}
 
-	return string(content), nil
+	return string(content), true, nil
 }

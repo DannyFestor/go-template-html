@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const mainlineRef = "origin/main"
+
 // Checkout is one git work tree, the main checkout or a linked worktree. GitDir is its own git dir, which a
 // linked worktree does not share.
 type Checkout struct {
@@ -52,6 +54,12 @@ func (c Checkout) Branch() string {
 	}
 
 	return branch
+}
+
+func (c Checkout) OnMainline(rel string) bool {
+	_, err := gitOutput(c.Root, "cat-file", "-e", mainlineRef+":"+rel)
+
+	return err == nil
 }
 
 func (c Checkout) Worktrees() []Checkout {

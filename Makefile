@@ -68,6 +68,23 @@ PROTECTED_REF := refs/heads/main
 HTTP_ADDR ?= :8080
 DEV_APP_URL = http://localhost:$(lastword $(subst :, ,$(HTTP_ADDR)))
 
+# The defaults compose.yaml falls back to, so the database targets reach the Compose Postgres without a .env.
+DB_HOST ?= localhost
+DB_PORT ?= 5432
+DB_USER ?= postgres
+DB_PASSWORD ?= postgres
+DB_NAME ?= go_template_html
+DB_SCHEMA ?= public
+# Tests never read .env, so the harness gets the connection to the Compose Postgres from the environment.
+TEST_DB_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) \
+	DB_SCHEMA=$(DB_SCHEMA)
+PSQL := docker compose exec -T postgres psql -v ON_ERROR_STOP=1 --quiet -U $(DB_USER)
+MIGRATIONS_DIR := migrations
+
+SQL_FORMATTER = $(VP) exec sql-formatter --config .sql-formatter.json
+# Applied migrations must stay byte-identical under formatter upgrades, so only FILES ever formats one.
+SQL_FILES = $(or $(FILES),$(wildcard queries/*.sql))
+
 # Kept in variables, because a literal comma would split the $(call) and $(if) arguments they are used in.
 TEST_TAGS := integration,feature,e2e
 LINT_WIP_DISABLED := unused,unparam
@@ -154,7 +171,7 @@ reset: ## Stop and remove the service containers and delete the Postgres and Val
 
 # bin/vp is fetched up front, so its download does not interleave with the output of the parallel watchers.
 .PHONY: dev
-dev: bin/vp services generate ## Start the services, then rebuild, restart and reload the browser on every change
+dev: bin/vp services generate migrate ## Start the services and migrate, then rebuild, restart and reload on every change
 	$(MAKE) -j watch-templ watch-vite watch-assets
 
 .PHONY: watch-templ
@@ -171,6 +188,30 @@ watch-assets: ## Reload the browser through the templ proxy whenever internal/as
 	$(AIR) --build.cmd "$(TEMPL) generate --notify-proxy" --build.entrypoint true \
 		--build.include_dir internal/asset/dist --build.include_ext css,js,json
 
+##@ Database
+
+.PHONY: migrate
+migrate: ## Apply the pending migrations to DB_SCHEMA
+	go run ./cmd/migrate up
+
+.PHONY: migrate-status
+migrate-status: ## List every migration and whether it is applied
+	go run ./cmd/migrate status
+
+.PHONY: migrate-create
+migrate-create: migration-stub generate-migrations-sum ## Create the next numbered migration, named after NAME=…
+
+.PHONY: migration-stub
+migration-stub:
+	scripts/create-migration.sh $(MIGRATIONS_DIR) $(NAME)
+
+.PHONY: migrate-fresh
+migrate-fresh: drop-schema migrate ## Drop DB_SCHEMA with all its data in the Compose Postgres, then migrate
+
+.PHONY: drop-schema
+drop-schema:
+	$(PSQL) -d $(DB_NAME) -c 'DROP SCHEMA IF EXISTS "$(DB_SCHEMA)" CASCADE; CREATE SCHEMA "$(DB_SCHEMA)";'
+
 ##@ Code
 
 .PHONY: generate
@@ -184,12 +225,20 @@ generate-templ: ## Regenerate the Go code of every templ file, or only of the te
 generate-go: ## Run go generate in GO_MODULE
 	$(GO) generate ./...
 
+.PHONY: generate-migrations-sum
+generate-migrations-sum: ## Rewrite migrations/migrations.sum from the migrations
+	go generate ./$(MIGRATIONS_DIR)
+
 .PHONY: drift-check
 drift-check: ## Fail if make generate changed or added a file
 	scripts/fail-on-drift.sh
 
+.PHONY: migrations-unchanged
+migrations-unchanged: ## Fail if a migration that already exists on origin/main was modified, renamed or deleted
+	scripts/fail-on-changed-migrations.sh origin/main $(MIGRATIONS_DIR)
+
 .PHONY: fmt
-fmt: fmt-go fmt-templ ## Format Go and templ code
+fmt: fmt-go fmt-templ fmt-sql ## Format Go, templ and SQL code
 
 .PHONY: fmt-go
 fmt-go: ## Format Go code, or only FILES, in GO_MODULE
@@ -200,7 +249,7 @@ fmt-templ: ## Format templ files, or only FILES
 	$(call templ-on-files,fmt,fmt .)
 
 .PHONY: fmt-check
-fmt-check: fmt-check-go fmt-check-templ fmt-check-js ## Fail if Go, templ or frontend code is not formatted
+fmt-check: fmt-check-go fmt-check-templ fmt-check-js fmt-check-sql ## Fail if Go, templ, frontend or SQL code is not formatted
 
 .PHONY: fmt-check-go
 fmt-check-go: ## Fail if Go code, or only FILES, in GO_MODULE is not formatted
@@ -214,6 +263,15 @@ fmt-check-templ: ## Fail if templ files, or only FILES, are not formatted, forma
 .PHONY: fmt-check-js
 fmt-check-js: bin/vp ## Fail if TypeScript, CSS, JSON or YAML, or only FILES, is not formatted
 	$(VP) fmt --check $(FILES)
+
+# sql-formatter reads one file per run and has no check mode, so each file's formatted output is diffed against it.
+.PHONY: fmt-sql
+fmt-sql: bin/vp ## Format the SQL files in queries/ with sql-formatter, or only FILES, which may name migrations
+	$(foreach file,$(SQL_FILES),$(SQL_FORMATTER) --fix $(file) &&) true
+
+.PHONY: fmt-check-sql
+fmt-check-sql: bin/vp ## Fail if the SQL files in queries/, or only FILES, are not formatted
+	$(foreach file,$(SQL_FILES),$(SQL_FORMATTER) $(file) | diff -u $(file) - &&) true
 
 .PHONY: lint
 lint: ## Lint Go code in GO_MODULE with golangci-lint, or only the packages holding FILES
@@ -303,19 +361,32 @@ test-agenthook: ## Run the agent hook tests in tools/agenthook
 test-js: bin/vp ## Run the JS unit tests with Vitest
 	$(VP) test
 
+.PHONY: test-integration
+test-integration: ## Run the integration tests in internal/ against the Compose Postgres, each in its own database
+	$(TEST_DB_ENV) $(GO) test -race -shuffle=on -tags integration ./internal/...
+
 # The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
 .PHONY: test-feature
-test-feature: ## Run the feature tests in tests/feature against the last `make vite-build`
-	$(GO) test -race -shuffle=on -tags feature ./tests/feature/...
+test-feature: ## Run the feature tests in tests/feature against the last `make vite-build` and the Compose Postgres
+	$(TEST_DB_ENV) $(GO) test -race -shuffle=on -tags feature ./tests/feature/...
+
+# psql runs a query's output as statements only through \gexec, which it reads from its input.
+.PHONY: test-db-clean
+test-db-clean: ## Drop the test databases that failed tests kept, and every template database
+	$(PSQL) -d postgres -v db_name=$(DB_NAME) < scripts/drop-test-databases.psql
 
 ##@ Build
 
 .PHONY: build
-build: js-install vite-build build-web ## Build the frontend assets, then cmd/web into bin/ stamped with VERSION
+build: js-install vite-build build-web build-migrate ## Build the frontend assets, then cmd/web and cmd/migrate into bin/
 
 .PHONY: build-web
 build-web:
 	CGO_ENABLED=0 go build -trimpath -ldflags='$(GO_LDFLAGS)' -o bin/web ./cmd/web
+
+.PHONY: build-migrate
+build-migrate:
+	CGO_ENABLED=0 go build -trimpath -ldflags='$(GO_LDFLAGS)' -o bin/migrate ./cmd/migrate
 
 .PHONY: build-packages
 build-packages:

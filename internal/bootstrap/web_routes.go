@@ -10,11 +10,18 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
-func newWebMux(assets *asset.Server, responder *web.Responder) *http.ServeMux {
+type webRoutes struct {
+	assets    *asset.Server
+	responder *web.Responder
+	readiness *health.Readiness
+}
+
+func newWebMux(routes webRoutes) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+route.Healthz, health.Liveness)
-	mux.Handle("GET "+route.Assets, assets)
-	mux.Handle("GET "+route.Home+"{$}", responder.Handle(home.NewShow(responder).Serve))
+	mux.Handle("GET "+route.Readyz, routes.readiness)
+	mux.Handle("GET "+route.Assets, routes.assets)
+	mux.Handle("GET "+route.Home+"{$}", routes.responder.Handle(home.NewShow(routes.responder).Serve))
 
 	return mux
 }
