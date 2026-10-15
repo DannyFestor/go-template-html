@@ -97,6 +97,48 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - An exception is a named entry in the allowlist inside the test, keyed by the subject the violation prints. An entry that matches no violation fails the test.
 - Each rule runs against a fixture in `tests/architecture/testdata/<rule>/` that proves it catches its violation.
 
+## Postgres and migrations
+
+| | |
+| --- | --- |
+| Version | pgx `github.com/jackc/pgx/v5` and goose `github.com/pressly/goose/v3` in the main `go.mod` ([upgrading.md](upgrading.md#goose)) |
+| Role | `internal/adapter/postgres` opens the pgxpool. `internal/adapter/goose` runs the forward-only SQL migrations in `migrations/` ([ADR-0005](adr/0005-forward-only-goose-migrations-with-sum-file.md)). `cmd/migrate up` and `cmd/migrate status` are the only migration commands. |
+
+- The `DB_` values build the connection. `DB_HOST`, `DB_USER`, `DB_PASSWORD` and `DB_NAME` have no default. `DB_SCHEMA` (default `public`) becomes every session's `search_path`, so migrations and queries use unqualified names, and goose keeps its `goose_db_version` table there.
+- `statement_timeout` (`WEB_DB_STATEMENT_TIMEOUT`, web only) and `idle_in_transaction_session_timeout` (`DB_IDLE_IN_TRANSACTION_TIMEOUT`) go to Postgres as startup parameters through `RuntimeParams`, never in the DSN. Behind PgBouncer, list both in its `ignore_startup_parameters`. `cmd/migrate` sends neither, so a long migration is never cut off.
+- The pool connects lazily, so `cmd/web` starts while Postgres is down. `/readyz` answers 503 until a ping succeeds. Its result is cached for `READINESS_CACHE_TTL` (default `5s`), and concurrent requests share one ping, so request rate can't drive more than one ping per TTL. Each ping times out after 2 seconds. `/readyz`, like `/healthz`, is logged at `debug`.
+- `make migrate` runs `cmd/migrate up`. It first checks the embedded migrations against the embedded `migrations.sum`, creates `DB_SCHEMA` if it is missing, then applies the pending migrations under goose's Postgres session lock, so two releases migrating at once can't apply one twice. `make migrate-status` lists each migration as `applied` with its time, or `pending`. `make dev` migrates after starting the services.
+- `make migrate-create NAME=<snake_case>` writes `migrations/<next number>_<NAME>.sql` with only a `-- +goose Up` line, then refreshes `migrations.sum`. Numbers are five digits and follow the highest one present.
+- `make migrate-fresh` drops `DB_SCHEMA` with all its data through `docker compose exec postgres psql`, recreates it and migrates. It only reaches the Compose Postgres, so it can't run in production.
+- `migrations/migrations.sum` has the shape of Atlas's `atlas.sum`: a total hash, then one hash per `.sql` file. `internal/migrationsum` computes and verifies it, and `//go:generate` in `migrations/embed.go` rewrites it, through `make generate` or `make generate-migrations-sum`. A test in `migrations/` fails when it is stale or a migration has a `-- +goose Down` section. Two branches that each add a migration conflict on its first line.
+- goose stores no checksum, so the sum guards the repo and the binary, not a database an older build already migrated. CI's `make migrations-unchanged` fails when a migration that is already on `origin/main` was modified, renamed or deleted.
+- `migrations/00001_create_public_schema.sql` holds only `CREATE SCHEMA IF NOT EXISTS public`. It exists because `//go:embed *.sql` doesn't compile without a match, and goose refuses an empty set. The first real migration follows it.
+
+## sql-formatter
+
+| | |
+| --- | --- |
+| Version | `sql-formatter` in the `devDependencies` of `package.json` ([upgrading.md](upgrading.md#sql-formatter)) |
+| Role | Formats SQL (`make fmt-sql`, part of `make fmt`; `make fmt-check-sql`, part of `make fmt-check`). Configured in `.sql-formatter.json`. |
+
+- The PostgreSQL dialect, with `paramTypes` that keep sqlc's `$1`, `@name` and `sqlc.arg(…)`-style calls intact.
+- Without `FILES`, the targets sweep `queries/*.sql` only. Migrations are formatted only when `FILES` names them, as the pre-commit hook and the agent hooks do for a staged or edited one, so a formatter upgrade never changes an applied migration.
+- It reads one file per run and has no check mode, so the targets run it once per file, and `fmt-check-sql` diffs each file against its formatted output.
+- It moves blank lines around `-- +goose StatementEnd`, which goose doesn't mind.
+
+## Integration tests
+
+| | |
+| --- | --- |
+| Version | `internal/testsupport/testdb`, on pgx |
+| Role | Run the adapters against the Compose Postgres, tagged `integration` next to the code (`make test-integration`, over `./internal/...`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, after `make services`. |
+
+- `testdb.New(t)` gives each test its own database, cloned with `CREATE DATABASE <DB_NAME>_t_<random> TEMPLATE <DB_NAME>_tpl_<hash>`, so every test calls `t.Parallel()`. The hash is the first 16 hex digits of the migrations' total hash.
+- The first test process to need a template builds it under an advisory lock in the `postgres` maintenance database. It migrates it under a `_building` name and renames it when done, so a run that dies halfway leaves no template that looks complete. Templates are kept between runs, and building a new one drops the stale ones.
+- A passing test's database is dropped. A failing test's database is kept, and its name is logged. `make test-db-clean` drops the kept clones and every template.
+- Tests never read `.env`. The Make targets pass the `DB_` values from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and the harness names any that are missing.
+- `testdb.Unreachable(t)` points at a closed loopback port, for testing behaviour while Postgres is down.
+
 ## Feature tests
 
 | | |
@@ -104,6 +146,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | goquery `github.com/PuerkitoBio/goquery` in the main `go.mod`, with testify |
 | Role | Exercise the app through real HTTP requests in `tests/feature/`, tagged `feature` (`make test-feature`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job. |
 
+- Each app the harness starts gets its own database from `testdb.New`, so the Compose Postgres has to be running (`make services`).
 - The harness builds the app in-process with `bootstrap.NewWebApp` in production mode and serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect and a form body. Responses are read in full, and HTML is parsed into goquery documents.
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
@@ -148,7 +191,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | The pinned templ, Vite+ and air |
-| Role | `make dev` starts the services and runs `make generate`, then runs `watch-templ`, `watch-vite` and `watch-assets` in parallel. Open the templ proxy at `http://127.0.0.1:7331`. |
+| Role | `make dev` starts the services and runs `make generate` and `make migrate`, then runs `watch-templ`, `watch-vite` and `watch-assets` in parallel. Open the templ proxy at `http://127.0.0.1:7331`. |
 
 - A `.go` edit, or Go code changed in a `.templ` file, regenerates and restarts `go run ./cmd/web`. A text-only `.templ` edit reloads without a restart. A `.ts` or `.css` edit, or a new Tailwind class, rebuilds `internal/asset/dist/`, which air turns into a reload.
 - A `.templ` or `.go` edit reloads the page twice, once from templ and once from the Vite rebuild that Tailwind's scan triggers.
@@ -269,11 +312,11 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | `golang:<toolchain>-trixie` for the build stage, `gcr.io/distroless/static-debian12:nonroot` pinned by digest for the runtime, both in `Dockerfile` ([upgrading.md](upgrading.md#go-build-image)) |
 | Role | `make image` builds the image for the host platform and tags it `IMAGE_NAME:VERSION` and `IMAGE_NAME:latest`. Nothing is pushed. |
 
-- The build stage runs `make build`, which fetches `bin/vp` and Node, installs from the frozen lockfile, runs the Vite build and then compiles `cmd/web` with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w -X …/buildinfo.Version=$(VERSION)"`.
+- The build stage runs `make build`, which fetches `bin/vp` and Node, installs from the frozen lockfile, runs the Vite build and then compiles `cmd/web` and `cmd/migrate` with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w -X …/buildinfo.Version=$(VERSION)"`.
 - `VERSION` defaults to `git describe --always --dirty`. `.git` is not in the build context, so `make image` passes it in as a build arg and `make build` stamps it into `buildinfo.Version` with `-X`. A plain `docker build` without `--build-arg VERSION` fails.
 - Cache mounts keep the Go module and build caches, the pnpm store and `.vite-plus/` between local builds. CI starts without them.
 - `.dockerignore` lists what `.gitignore` does, plus `.git`. Change both together.
-- The runtime runs as uid 65532 with CA certificates and tzdata, and holds `/app/web` with `ENTRYPOINT []` and `CMD ["/app/web"]`, so the platform can override the command without resetting an entrypoint.
+- The runtime runs as uid 65532 with CA certificates and tzdata, and holds `/app/web` and `/app/migrate` with `ENTRYPOINT []` and `CMD ["/app/web"]`, so the platform can override the command, such as with `/app/migrate up` as a release step, without resetting an entrypoint.
 - There is no `HEALTHCHECK`: distroless has no shell or curl. Orchestrators probe the app's HTTP endpoints instead.
 - `IMAGE_NAME` is the template's slug, not `APP_NAME`, which `.env` would leak into the tag.
 
@@ -284,6 +327,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | pre-commit | Refuses commits on `main`. A detached HEAD, as during a rebase, passes. | `make refuse-commit-on-main` |
 | pre-commit | Formats the staged Go files and re-stages them | `make fmt-go` (golangci-lint) |
 | pre-commit | Formats the staged templ files and re-stages them | `make fmt-templ` (templ) |
+| pre-commit | Formats the staged SQL files, migrations included, and re-stages them | `make fmt-sql` (sql-formatter) |
 | pre-commit | Formats the staged TypeScript, CSS and JSON files and re-stages them | `make fmt-js` (oxfmt) |
 | pre-commit | Lints the staged shell scripts | `make lint-shell` (shellcheck) |
 | pre-commit | Scans the staged changes for secrets | `make lint-secrets` (gitleaks) |
@@ -309,12 +353,13 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 | Before an edit | Denies edits to generated output and names what regenerates it: a file with a `Code generated … DO NOT EDIT.` header (`make generate`), `internal/asset/dist/` (`make vite-build`), `migrations.sum` (`make generate`), `go.sum` (`go mod tidy`) and `pnpm-lock.yaml` (`bin/vp add` or `remove`) | `internal/editrule/generated.go` |
 | Before an edit | Asks before editing a guardrail file: `.golangci.yml`, `.go-arch-lint.yml`, `lefthook.yml`, `tools/agenthook/`, `.claude/settings.json`, `.github/workflows/`, `.github/rulesets/` | `internal/editrule/guardrail.go` |
 | Before an edit | Asks before editing `go.mod`, `tools/*.mod` or `package.json`, which can add a dependency | `internal/editrule/guardrail.go` |
+| Before an edit | Denies edits to a `migrations/*.sql` file that exists on `origin/main`, and the creation of a new one, which `make migrate-create NAME=…` makes instead. A stub on a branch can be edited freely. | `internal/editrule/migration.go` |
 | Before an edit | Comment guard: a comment added to a Go, TS, templ, SQL or shell file is denied with "comments only explain a why the code cannot", and the same comment resubmitted in the session asks the human. Comments already in the file pass, and so do directives (see below). | `internal/comment/languages.go` |
 | Before a shell command | Denies shell writes into a checkout, so every change goes through the edit tools and their post-edit checks: redirects, `tee`, `sed -i`, `perl -i`, `cp`, `mv` and `ln` into it, `patch`, `git apply`, and inline interpreter scripts (`-c`, `-e`, heredocs) that call a file-writing API. Writes outside every checkout, as under `$TMPDIR`, pass. | `internal/commandrule/write.go` |
 | Before a shell command | Denies `git push` to `main`: a `main`, `HEAD:main` or `refs/heads/main` refspec, `--all`, `--mirror`, or a push without a refspec where `main` is checked out. Other branches pass, `--force-with-lease` included. | `internal/commandrule/push.go` |
 | Before a shell command | Asks before `git reset --hard`, `clean -f…`, `checkout -- <path>`, `checkout .`, `restore` without `--staged`, `stash drop`, `stash clear`, `branch -D` and `worktree remove --force` | `internal/commandrule/destructive.go` |
 | Before a shell command | Asks before `go get`, `go mod edit -require` or `-tool`, `pnpm add`, `vp add` and `npm install <package>`. `go mod tidy` and frozen installs pass. | `internal/commandrule/dependency.go` |
-| After an edit | A `.go` file gets `make fmt-go`, `make vet` (every test tag) and `make lint-wip` (no `unused` or `unparam`, since the caller is often not written yet) in its module. A `.templ` file gets `make fmt-templ` and `make generate-templ` on itself, then `make vet` and `make lint-wip` on its package. A `.ts` file gets `make fmt-js` and `make lint-js`. The first failure goes back to the agent. | `internal/check/after_edit.go` |
+| After an edit | A `.go` file gets `make fmt-go`, `make vet` (every test tag) and `make lint-wip` (no `unused` or `unparam`, since the caller is often not written yet) in its module. A `.templ` file gets `make fmt-templ` and `make generate-templ` on itself, then `make vet` and `make lint-wip` on its package. A `.ts` file gets `make fmt-js` and `make lint-js`. A `migrations/*.sql` file gets `make fmt-sql` on itself, then `make generate-migrations-sum`. The first failure goes back to the agent. | `internal/check/after_edit.go` |
 | End of turn | `make build-packages`, go-arch-lint, `make lint` and `make test-go` on the packages this session edited, per module, a `.templ` file counting as the `_templ.go` generated from it, then `make typecheck-js` and `make test-js` if it touched TypeScript. A failure blocks the turn from ending. The gate is skipped when nothing changed since it last passed, and it lets the turn end after 3 blocks in a row. | `internal/check/end_of_turn.go`, `internal/hook/gate.go` |
 
 - Exempt directives: Go `//go:…`, `//nolint:<linter> // <reason>`, `//name:arg` directives and the generated-code header; TS `// @ts-expect-error`, `/// <reference …>` and `oxlint-disable`, `-line`, `-next-line` or `oxlint-enable` naming at least one rule; SQL `-- name: … :<cmd>` and `-- +goose …`; the shebang and `# shellcheck …`; and a `gitleaks:allow` marker in any language. A bare `oxlint-disable` and every `eslint-` directive count as comments, and oxlint's `unicorn/no-abusive-eslint-disable` holds humans to the same rule.
@@ -334,8 +379,8 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 | Job | Runs |
 | --- | --- |
 | `lint` | `make fmt-check`, `lint`, `lint-agenthook`, `lint-js`, `typecheck-js`, `lint-shell` and `arch` |
-| `generate` | `make generate`, then `make drift-check`, which fails if that changed a tracked file or created a new one |
-| `test` | `make test`, then `make vite-build` and `make test-feature`, because the feature tests run the app on the embedded build |
+| `generate` | `make generate`, then `make drift-check`, which fails if that changed a tracked file or created a new one, then `make migrations-unchanged`, which fails if a migration already on `origin/main` was modified, renamed or deleted. It checks out the full history to have `origin/main`. |
+| `test` | `make services`, `make test` and `make test-integration`, then `make vite-build` and `make test-feature`, because the feature tests run the app on the embedded build |
 | `vuln` | `make vuln` and `make vuln-agenthook` |
 | `image` | `make image`, which builds the [production image](#production-image) without pushing it |
 | `pr-title` | `make lint-pr-title`, which runs `cog verify` on the pull request's title |

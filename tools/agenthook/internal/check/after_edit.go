@@ -24,6 +24,11 @@ func AfterEdit(root, rel string) Plan {
 			targetCheck(checkoutTarget("fmt-js", []string{rel})),
 			targetCheck(checkoutTarget("lint-js", []string{rel})),
 		}
+	case isMigration(rel):
+		return Plan{
+			targetCheck(checkoutTarget("fmt-sql", []string{rel})),
+			targetCheck(checkoutTarget("generate-migrations-sum", nil)),
+		}
 	default:
 		return nil
 	}

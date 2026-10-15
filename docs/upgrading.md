@@ -106,6 +106,24 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/govulncheck.mod -tool golang.org/x/vuln/cmd/govulncheck@<version>`.
 - **Afterwards**: `make vuln vuln-agenthook`.
 
+## pgx
+
+- **Pinned in**: `github.com/jackc/pgx/v5` in `go.mod` and `go.sum`.
+- **Bump**: `go get github.com/jackc/pgx/v5@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: read the changelog for changed pool defaults and connection parameters, then run `make services test-integration vite-build test-feature`.
+
+## goose
+
+- **Pinned in**: `github.com/pressly/goose/v3` in `go.mod` and `go.sum`. Only `internal/adapter/goose` imports it ([ADR-0005](adr/0005-forward-only-goose-migrations-with-sum-file.md)).
+- **Bump**: `go get github.com/pressly/goose/v3@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: read the changelog for changes to the `Provider` API, the version table, the session lock and how SQL files are parsed, such as new `-- +goose` annotations. Then run `make services test-integration migrate-fresh migrate-status`.
+
+## sql-formatter
+
+- **Pinned in**: `sql-formatter` in the `devDependencies` of `package.json`, and `pnpm-lock.yaml`.
+- **Bump**: `VP_HOME="$PWD/.vite-plus" bin/vp add -D sql-formatter@<version>`.
+- **Afterwards**: run `make fmt-sql` and review the diff in `queries/`. Applied migrations are never swept, so they stay byte-identical; check one by hand with `make fmt-check-sql FILES=migrations/<file>.sql` to see how the new version would format the next one.
+
 ## mvdan.cc/sh
 
 - **Pinned in**: `tools/agenthook/go.mod` and `tools/agenthook/go.sum`, the agent hooks' own module, so the app's `go.mod` never requires it. `.golangci.yml` allows its module path in `gomodguard_v2`.

@@ -95,6 +95,40 @@ func TestWritingAFileKeepsTheCommentsAlreadyInIt(t *testing.T) {
 	requirePassed(t, runHook(t, "pre-tool-use", "pre_tool_use_write", call))
 }
 
+func TestEditingAMigrationAlreadyOnOriginMainIsDenied(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	path := commitFile(t, repo, "migrations/00001_create_users.sql", "-- +goose Up\nCREATE TABLE users (id int);\n")
+	git(t, repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+	result := runHook(t, "pre-tool-use", "pre_tool_use_edit", editCall(repo, path, "id int", "id bigint"))
+
+	requirePermission(t, result, "deny", "origin/main")
+}
+
+func TestWritingANewMigrationIsDeniedInFavourOfMakeMigrateCreate(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	call := writeCall(repo, filepath.Join(repo, "migrations", "00002_create_posts.sql"), "-- +goose Up\n")
+
+	requirePermission(t, runHook(t, "pre-tool-use", "pre_tool_use_write", call), "deny", "make migrate-create")
+}
+
+func TestEditingAMigrationStubOnABranchPasses(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	git(t, repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+	path := commitFile(t, repo, "migrations/00002_create_posts.sql", "-- +goose Up\n")
+
+	result := runHook(t, "pre-tool-use", "pre_tool_use_edit",
+		editCall(repo, path, "-- +goose Up\n", "-- +goose Up\nCREATE TABLE posts (id int);\n"))
+
+	requirePassed(t, result)
+}
+
 func TestEditsOutsideACheckoutPass(t *testing.T) {
 	t.Parallel()
 

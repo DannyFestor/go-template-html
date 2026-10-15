@@ -11,6 +11,7 @@ type Edit struct {
 	Original string
 	Removed  string
 	Inserted string
+	Created  bool
 }
 
 type commentMemory interface {
@@ -18,17 +19,27 @@ type commentMemory interface {
 	Remember(comments []string) error
 }
 
-type Judge struct {
-	memory commentMemory
+type mainline interface {
+	OnMainline(rel string) bool
 }
 
-func NewJudge(memory commentMemory) Judge {
-	return Judge{memory: memory}
+type Judge struct {
+	memory   commentMemory
+	mainline mainline
+}
+
+func NewJudge(memory commentMemory, mainline mainline) Judge {
+	return Judge{memory: memory, mainline: mainline}
 }
 
 // Edit runs the comment guard last, so an edit already denied leaves no comment marked as seen.
 func (j Judge) Edit(edit Edit) (decision.Decision, error) {
-	byPath := decision.Strongest(generatedOutput(edit), guardrailFile(edit), dependencyManifest(edit))
+	byPath := decision.Strongest(
+		generatedOutput(edit),
+		guardrailFile(edit),
+		dependencyManifest(edit),
+		j.migrationEdit(edit),
+	)
 	if byPath.Verdict == decision.Deny {
 		return byPath, nil
 	}

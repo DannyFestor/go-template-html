@@ -8,7 +8,9 @@ import (
 	"net/http"
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
+	"github.com/DannyFestor/go-template-html/internal/adapter/postgres"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
+	"github.com/DannyFestor/go-template-html/internal/handler/health"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
@@ -16,6 +18,7 @@ type WebApp struct {
 	Mux       *http.ServeMux
 	Responder *web.Responder
 	handler   http.Handler
+	pool      *postgres.Pool
 }
 
 func RunWeb() int {
@@ -23,10 +26,11 @@ func RunWeb() int {
 }
 
 func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
-	app, err := NewWebApp(config, logger)
+	app, err := NewWebApp(ctx, config, logger)
 	if err != nil {
 		return err
 	}
+	defer app.Close()
 
 	var listenConfig net.ListenConfig
 
@@ -45,10 +49,15 @@ func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
 	return Serve(ctx, server, listener, config.App.ShutdownTimeout)
 }
 
-func NewWebApp(config Config, logger *slog.Logger) (*WebApp, error) {
+func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp, error) {
 	assets, err := newAssetServer(config.App.Env)
 	if err != nil {
 		return nil, err
+	}
+
+	pool, err := postgres.Open(ctx, webPostgresConfig(config.DB))
+	if err != nil {
+		return nil, fmt.Errorf("connect to the database: %w", err)
 	}
 
 	responder := web.NewResponder(
@@ -56,17 +65,26 @@ func NewWebApp(config Config, logger *slog.Logger) (*WebApp, error) {
 		logreport.New(logger),
 		config.App.Env == EnvironmentLocal,
 	)
-	mux := newWebMux(assets, responder)
+	mux := newWebMux(webRoutes{
+		assets:    assets,
+		responder: responder,
+		readiness: health.NewReadiness(health.NewCachedPing(pool, config.HTTP.ReadinessCacheTTL)),
+	})
 
 	return &WebApp{
 		Mux:       mux,
 		Responder: responder,
 		handler:   withMiddleware(mux, webMiddleware(config.HTTP, logger, responder)),
+		pool:      pool,
 	}, nil
 }
 
 func (a *WebApp) Handler() http.Handler {
 	return a.handler
+}
+
+func (a *WebApp) Close() {
+	a.pool.Close()
 }
 
 func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.Server {

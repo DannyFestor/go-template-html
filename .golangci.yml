@@ -67,6 +67,8 @@ linters:
         - module: github.com/stretchr/testify
         - module: github.com/a-h/templ
         - module: github.com/PuerkitoBio/goquery
+        - module: github.com/jackc/pgx/v5
+        - module: github.com/pressly/goose/v3
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:

@@ -86,6 +86,23 @@ func TestEditingATemplFileFormatsAndGeneratesItThenChecksItsPackage(t *testing.T
 	)
 }
 
+func TestEditingAMigrationFormatsItThenRefreshesTheSum(t *testing.T) {
+	t.Parallel()
+
+	repo := newRepo(t)
+	path := writeFile(t, repo, "migrations/00002_create_posts.sql", "-- +goose Up\nCREATE TABLE posts (id int);\n")
+
+	requirePassed(
+		t,
+		runHook(t, "post-tool-use", "post_tool_use_edit", editCall(repo, path, "-- +goose Up\n", "CREATE TABLE")),
+	)
+
+	requireMakeLog(t, repo,
+		"fmt-sql GO_MODULE= FILES=migrations/00002_create_posts.sql",
+		"generate-migrations-sum GO_MODULE= FILES=",
+	)
+}
+
 func TestEditingAnotherFileRunsNoCheck(t *testing.T) {
 	t.Parallel()
 

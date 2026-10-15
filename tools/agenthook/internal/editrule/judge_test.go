@@ -22,8 +22,51 @@ func (f fakeMemory) Remember(comments []string) error {
 	return nil
 }
 
+const appliedMigration = "migrations/00001_create_users.sql"
+
+type fakeMainline map[string]bool
+
+func (f fakeMainline) OnMainline(rel string) bool {
+	return f[rel]
+}
+
+func newJudge(memory fakeMemory) editrule.Judge {
+	return editrule.NewJudge(memory, fakeMainline{appliedMigration: true})
+}
+
 func insertion(path, inserted string) editrule.Edit {
-	return editrule.Edit{Path: path, Original: "", Removed: "", Inserted: inserted}
+	return editrule.Edit{Path: path, Original: "", Removed: "", Inserted: inserted, Created: false}
+}
+
+func creation(path, inserted string) editrule.Edit {
+	return editrule.Edit{Path: path, Original: "", Removed: "", Inserted: inserted, Created: true}
+}
+
+func TestEditingAMigrationOnMainlineIsDenied(t *testing.T) {
+	t.Parallel()
+
+	requireDecisions(t, []editTest{
+		{insertion(appliedMigration, "ALTER TABLE users ADD x int;\n"), decision.Deny, "make migrate-create NAME="},
+		{insertion(appliedMigration, "ALTER TABLE users ADD x int;\n"), decision.Deny, "origin/main"},
+	})
+}
+
+func TestCreatingAMigrationIsDeniedInFavourOfMakeMigrateCreate(t *testing.T) {
+	t.Parallel()
+
+	requireDecisions(t, []editTest{
+		{creation("migrations/00002_create_posts.sql", "-- +goose Up\n"), decision.Deny, "make migrate-create NAME="},
+		{creation("migrations/notes.md", "# Notes\n"), decision.Pass, ""},
+		{creation("queries/users.sql", "SELECT 1;\n"), decision.Pass, ""},
+	})
+}
+
+func TestEditingAMigrationStubNotOnMainlinePasses(t *testing.T) {
+	t.Parallel()
+
+	requireDecisions(t, []editTest{
+		{insertion("migrations/00002_create_posts.sql", "CREATE TABLE posts (id int);\n"), decision.Pass, ""},
+	})
 }
 
 type editTest struct {
@@ -39,7 +82,13 @@ func TestGeneratedOutputIsDenied(t *testing.T) {
 
 	requireDecisions(t, []editTest{
 		{
-			editrule.Edit{Path: "internal/view/home_templ.go", Original: templOutput, Removed: "a", Inserted: "b"},
+			editrule.Edit{
+				Path:     "internal/view/home_templ.go",
+				Original: templOutput,
+				Removed:  "a",
+				Inserted: "b",
+				Created:  false,
+			},
 			decision.Deny, "make generate",
 		},
 		{
@@ -119,7 +168,13 @@ func TestDirectivesAndNonCommentsPass(t *testing.T) {
 		insertion("migrations/1_a.sql", "-- +goose Up\n"),
 		insertion("scripts/a.sh", "#!/bin/sh\n# shellcheck disable=SC2086\necho \"${#x} # y\" a#b\n"),
 		insertion("lefthook.yml.md", "# heading\n"),
-		{Path: "internal/a.go", Original: "", Removed: "// keep\nn := 1\n", Inserted: "// keep\nn := 2\n"},
+		{
+			Path:     "internal/a.go",
+			Original: "",
+			Removed:  "// keep\nn := 1\n",
+			Inserted: "// keep\nn := 2\n",
+			Created:  false,
+		},
 	}
 
 	for _, edit := range passes {
@@ -130,7 +185,7 @@ func TestDirectivesAndNonCommentsPass(t *testing.T) {
 func TestResubmittedCommentsAsk(t *testing.T) {
 	t.Parallel()
 
-	judge := editrule.NewJudge(fakeMemory{})
+	judge := newJudge(fakeMemory{})
 	edit := insertion("internal/a.go", "n++ // increments the counter\n")
 
 	first := judgeEdit(t, judge, edit)
@@ -145,7 +200,7 @@ func TestDeniedEditsDoNotRememberComments(t *testing.T) {
 	t.Parallel()
 
 	memory := fakeMemory{}
-	judge := editrule.NewJudge(memory)
+	judge := newJudge(memory)
 
 	judgeEdit(t, judge, insertion("go.sum", "// note\n"))
 
@@ -169,7 +224,7 @@ func requireDecisions(t *testing.T, tests []editTest) {
 	t.Helper()
 
 	for _, test := range tests {
-		got := judgeEdit(t, editrule.NewJudge(fakeMemory{}), test.edit)
+		got := judgeEdit(t, newJudge(fakeMemory{}), test.edit)
 		if got.Verdict != test.want || !strings.Contains(got.Reason, test.wantReason) {
 			t.Errorf(
 				"Edit(%+v) = %v %q, want %v containing %q",

@@ -21,11 +21,15 @@ vendors:
       - github.com/a-h/templ
       - github.com/a-h/templ/**
   pgx:
-    in: github.com/jackc/pgx/v5/**
+    in:
+      - github.com/jackc/pgx/v5
+      - github.com/jackc/pgx/v5/**
   go-redis:
     in: github.com/redis/go-redis/v9/**
   goose:
-    in: github.com/pressly/goose/v3/**
+    in:
+      - github.com/pressly/goose/v3
+      - github.com/pressly/goose/v3/**
   config:
     in:
       # `/**` does not match the module's root package, which is all godotenv has.
@@ -122,6 +126,7 @@ deps:
       - adapter-valkey
       - adapter-goose
       - migrations
+      - migrationsum
       - seed
       - buildinfo
     canUse:
@@ -186,6 +191,8 @@ deps:
     mayDependOn:
       - adapter-postgres
       - domain
+      # Its integration tests run each in a database of their own.
+      - testsupport
     canUse:
       - pgx
   adapter-valkey:
@@ -195,11 +202,17 @@ deps:
       - go-redis
   adapter-goose:
     mayDependOn:
+      - adapter-goose
       - domain
+      # goose needs a database/sql handle, which it opens on the Postgres pool.
+      - adapter-postgres
+      # Its integration tests run each in a database of their own.
+      - testsupport
     canUse:
       - goose
   migrations:
     mayDependOn:
+      - migrations
       - migrationsum
   migrationsum:
     mayDependOn:
@@ -219,6 +232,10 @@ deps:
     mayDependOn:
       - testsupport
       - migrationsum
+      # The test database harness migrates its template database the way cmd/migrate does.
+      - migrations
+      - adapter-postgres
+      - adapter-goose
     canUse:
       - pgx
   architecture-test:

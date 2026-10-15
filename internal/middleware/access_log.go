@@ -28,7 +28,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 func accessLogLevel(r *http.Request) slog.Level {
-	if r.URL.Path == route.Healthz {
+	if r.URL.Path == route.Healthz || r.URL.Path == route.Readyz {
 		return slog.LevelDebug
 	}
 
