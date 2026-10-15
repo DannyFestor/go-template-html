@@ -42,7 +42,7 @@ linters:
             - pkg: github.com/PuerkitoBio/goquery
               desc: test-only, imported by tests and internal/testsupport (ADR-0007)
             - pkg: go.uber.org/mock
-              desc: test-only, imported by tests and the mocks mockgen writes into _test.go files (ADR-0002)
+              desc: test-only, imported by tests and the _test.go mocks mockgen writes (ADR-0007)
         no-reflect:
           deny:
             - pkg: reflect$

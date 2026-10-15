@@ -79,11 +79,11 @@ func markerDatabase(t *testing.T) (testdb.Database, *postgres.Pool) {
 	t.Helper()
 
 	database := testdb.New(t)
+	pool := open(t, database.PostgresConfig())
 
-	_, err := connect(t, database).Exec(t.Context(), "CREATE TABLE marker (name text NOT NULL)")
-	require.NoError(t, err)
+	require.NoError(t, postgres.Exec(t.Context(), pool, "CREATE TABLE marker (name text NOT NULL)"))
 
-	return database, open(t, database.PostgresConfig())
+	return database, pool
 }
 
 func insertMarker(ctx context.Context, t *testing.T, pool *postgres.Pool, name string) {

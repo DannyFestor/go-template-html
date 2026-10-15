@@ -5,26 +5,27 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Transactor struct {
-	pool *Pool
+	pool *pgxpool.Pool
 }
 
 func NewTransactor(pool *Pool) *Transactor {
-	return &Transactor{pool: pool}
+	return &Transactor{pool: pool.pool}
 }
 
 func (t *Transactor) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
-	if inTransaction(ctx) {
+	if _, ok := transactionFrom(ctx); ok {
 		return fn(ctx)
 	}
 
-	err := pgx.BeginFunc(ctx, t.pool.pool, func(tx pgx.Tx) error {
+	err := pgx.BeginFunc(ctx, t.pool, func(tx pgx.Tx) error {
 		return fn(withTransaction(ctx, tx))
 	})
 	if err != nil {
-		return fmt.Errorf("within a transaction: %w", err)
+		return fmt.Errorf("run a transaction: %w", err)
 	}
 
 	return nil
