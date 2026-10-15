@@ -41,6 +41,8 @@ linters:
               desc: test-only, imported by tests and internal/testsupport (ADR-0007)
             - pkg: github.com/PuerkitoBio/goquery
               desc: test-only, imported by tests and internal/testsupport (ADR-0007)
+            - pkg: go.uber.org/mock
+              desc: test-only, imported by tests and the mocks mockgen writes into _test.go files (ADR-0002)
         no-reflect:
           deny:
             - pkg: reflect$
@@ -69,6 +71,7 @@ linters:
         - module: github.com/PuerkitoBio/goquery
         - module: github.com/jackc/pgx/v5
         - module: github.com/pressly/goose/v3
+        - module: go.uber.org/mock
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:
