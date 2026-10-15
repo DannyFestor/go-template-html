@@ -12,6 +12,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/stretchr/testify v1.12.1
+	go.uber.org/mock v0.6.0
 )
 
 require (
@@ -40,4 +41,7 @@ require (
 	golang.org/x/tools v0.51.0 // indirect
 )
 
-tool github.com/a-h/templ/cmd/templ
+tool (
+	github.com/a-h/templ/cmd/templ
+	go.uber.org/mock/mockgen
+)

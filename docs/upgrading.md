@@ -15,6 +15,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -tool github.com/a-h/templ/cmd/templ@<version>`.
 - **Afterwards**: `make generate`, which rewrites the version line of every `*_templ.go`, then `make fmt-check-templ test-go vite-build test-feature`. Commit the regenerated files with the bump.
 
+## mockgen
+
+- **Pinned in**: the `tool go.uber.org/mock/mockgen` directive and the `go.uber.org/mock` require in `go.mod`, which pin the CLI and the `gomock` runtime together.
+- **Bump**: `go get -tool go.uber.org/mock/mockgen@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: `make generate`, which rewrites every `mock_*_test.go`, then `make test-go`. Commit the regenerated files with the bump.
+
 ## Go build image
 
 - **Pinned in**: the first `FROM` line of `Dockerfile`, as `golang:<patch-version>-<debian-release>`. The patch version is the one on the `toolchain` line of `go.mod`.

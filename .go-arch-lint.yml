@@ -43,9 +43,13 @@ vendors:
   # depguard keeps it out of non-test files.
   goquery:
     in: github.com/PuerkitoBio/goquery
+  # depguard keeps it out of non-test files.
+  gomock:
+    in: go.uber.org/mock/**
 
 commonVendors:
   - testify
+  - gomock
 
 components:
   cmd:
