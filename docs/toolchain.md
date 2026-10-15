@@ -133,6 +133,32 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `LEFTHOOK=0 git commit …` skips the hooks. `LEFTHOOK_VERBOSE=1` prints each command a job runs.
 - Hooks export `GIT_DIR` and friends. A test that shells out to git strips `GIT_*` from its environment and works in `t.TempDir()`, as `tests/hooks/` does.
 
+## air
+
+| | |
+| --- | --- |
+| Version | v1.67.4, in `tools/tools.mod` ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)) |
+| Role | Watches `internal/asset/dist/` in `make watch-assets` and runs `templ generate --notify-proxy` after each frontend rebuild, so the templ proxy reloads the browser ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)). |
+
+- It is configured by flags in the Makefile, so there is no `.air.toml`. `true` stands in for the binary air expects to run after each build.
+- It writes its build log to `tmp/`.
+
+## Dev loop
+
+| | |
+| --- | --- |
+| Version | The pinned templ, Vite+ and air |
+| Role | `make dev` starts the services and runs `make generate`, then runs `watch-templ`, `watch-vite` and `watch-assets` in parallel. Open the templ proxy at `http://127.0.0.1:7331`. |
+
+- A `.go` edit, or Go code changed in a `.templ` file, regenerates and restarts `go run ./cmd/web`. A text-only `.templ` edit reloads without a restart. A `.ts` or `.css` edit, or a new Tailwind class, rebuilds `internal/asset/dist/`, which air turns into a reload.
+- A `.templ` or `.go` edit reloads the page twice, once from templ and once from the Vite rebuild that Tailwind's scan triggers.
+- There is no Vite dev server, so dev serves the build through the same manifest code path as production.
+- The proxy forwards to the port in `HTTP_ADDR`, read from `.env` or the app's default `:8080`.
+- The app needs `APP_ENV`, so copy `.env.example` to `.env` first.
+- templ opens the proxy in the browser at startup.
+- The output of the watchers is interleaved, because Make 3.81 has no `--output-sync`.
+- Ctrl-C stops every watcher. The containers keep running until `make down`.
+
 ## cog
 
 | | |
@@ -175,7 +201,8 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `tools/vp.sha256` is a verbatim copy of the release's `vp-checksums.txt`, so it also lists the Windows assets.
 - Make runs `bin/vp` with `VP_HOME=.vite-plus`, which keeps Node, pnpm and vp's own shims inside the checkout. Without it, `bin/vp` sets itself up in `~/.vite-plus` and repoints a global vp's shims at itself. Running `bin/vp` by hand needs the same variable.
 - The first run after `bin/vp` is fetched prints shell setup steps. Make never uses the shims, so they can be ignored.
-- The Vite root is the repo root, so Tailwind scans every file git doesn't ignore, `.templ` included.
+- The Vite root is the repo root, so Tailwind scans every file git doesn't ignore, `.templ` included. `vp build --watch` rebuilds when any of them changes.
+- `app.css` excludes `internal/asset/dist/` with `@source not`. Each build rewrites the tracked `.gitkeep` there, which would otherwise trigger the next build without end.
 - `internal/asset/src/app.ts` is the only entry. It imports `app.css`, so the manifest lists the stylesheet under the entry's `css` key.
 - The build empties `internal/asset/dist/` and writes the manifest to `dist/manifest.json`. A small plugin in `vite.config.ts` writes `.gitkeep` back, so the tracked file never shows as deleted.
 - `internal/asset` serves only the files the manifest lists, under `/assets/`. In production, bootstrap hands it the build embedded with `//go:embed all:dist`: a missing manifest fails startup, and files are cached for a year as `immutable`. In local mode it reads `internal/asset/dist` from disk relative to the working directory, re-reads the manifest on every lookup and sends `no-store`.

@@ -75,6 +75,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/tools.mod -tool github.com/evilmartians/lefthook/v2@<version>`. A new major version also changes the module path.
 - **Afterwards**: `make setup`, which reinstalls the hooks, then make a commit on a branch to see them run.
 
+## air
+
+- **Pinned in**: `tools/tools.mod` and `tools/tools.sum`, shared with lefthook ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)).
+- **Bump**: `go get -modfile=tools/tools.mod -tool github.com/air-verse/air@<version>`.
+- **Afterwards**: read the changelog for renamed flags, because `watch-assets` configures air through flags alone. Then run `make dev`, edit a `.ts` file and check that the page reloads.
+
 ## cog
 
 - **Pinned in**: `tools/cog.version` and `tools/cog.sha256`.
