@@ -5,7 +5,9 @@ package feature_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 	"github.com/DannyFestor/go-template-html/internal/route"
@@ -13,10 +15,12 @@ import (
 )
 
 const (
-	probeFailure  = "/probe/failure"
-	probeRedirect = "/probe/redirect"
-	probeForm     = "/probe/form"
-	probeFlash    = "/probe/flash"
+	probeFailure    = "/probe/failure"
+	probeRedirect   = "/probe/redirect"
+	probeForm       = "/probe/form"
+	probeFlash      = "/probe/flash"
+	probeLargePage  = "/probe/large-page"
+	probeSecretPage = "/probe/secret-page"
 
 	probeFlashMessage = "Probe flashed."
 )
@@ -30,6 +34,8 @@ func mountProbes(webApp *bootstrap.WebApp) {
 	webApp.Mux.Handle("POST "+probeRedirect, responder.Handle(redirectingHome(responder)))
 	webApp.Mux.Handle("POST "+probeForm, responder.Handle(parsingTheForm))
 	webApp.Mux.Handle("POST "+probeFlash, responder.Handle(flashingHome(responder)))
+	webApp.Mux.HandleFunc("GET "+probeLargePage, writingTheLargePage)
+	webApp.Mux.HandleFunc("GET "+probeSecretPage, writingTheSecretPage)
 }
 
 func flashingHome(responder *web.Responder) web.HandlerFunc {
@@ -61,4 +67,18 @@ func parsingTheForm(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(http.StatusNoContent)
 
 	return nil
+}
+
+func writingTheSecretPage(w http.ResponseWriter, r *http.Request) {
+	web.SkipCompression(w)
+	writingTheLargePage(w, r)
+}
+
+func writingTheLargePage(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = io.WriteString(w, largePage())
+}
+
+func largePage() string {
+	return "<!doctype html><title>Large</title><p>" + strings.Repeat("Compressible text. ", 200) + "</p>"
 }

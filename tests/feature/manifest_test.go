@@ -4,6 +4,7 @@ package feature_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -11,7 +12,8 @@ import (
 )
 
 const (
-	builtManifest = "../../internal/asset/dist/manifest.json"
+	builtDist     = "../../internal/asset/dist/"
+	builtManifest = builtDist + "manifest.json"
 	appEntry      = "internal/asset/src/app.ts"
 )
 
@@ -32,6 +34,15 @@ func builtAppEntry(t *testing.T) builtChunk {
 	require.Contains(t, manifest, appEntry)
 
 	return manifest[appEntry]
+}
+
+func builtFile(t *testing.T, name string) []byte {
+	t.Helper()
+
+	content, err := fs.ReadFile(os.DirFS(builtDist), name)
+	require.NoError(t, err, "run `make vite-build` before the feature tests")
+
+	return content
 }
 
 func prefixed(prefix string, values []string) []string {

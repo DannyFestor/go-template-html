@@ -60,7 +60,7 @@ func TestProductionServesTheAppScriptForAYear(t *testing.T) {
 	fetched := startApp(t).get(t, "/"+builtAppEntry(t).File)
 
 	assert.Equal(t, http.StatusOK, fetched.status)
-	assert.Equal(t, "text/javascript; charset=utf-8", fetched.header.Get("Content-Type"))
+	assert.Equal(t, "application/javascript", fetched.header.Get("Content-Type"))
 	assert.Equal(t, "public, max-age=31536000, immutable", fetched.header.Get("Cache-Control"))
 }
 

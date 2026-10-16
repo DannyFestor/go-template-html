@@ -30,6 +30,12 @@ vendors:
       - github.com/redis/go-redis/v9/**
   argon2:
     in: golang.org/x/crypto/argon2
+  compress:
+    in: github.com/klauspost/compress/**
+  statigz:
+    in:
+      - github.com/vearutop/statigz
+      - github.com/vearutop/statigz/**
   goose:
     in:
       - github.com/pressly/goose/v3
@@ -97,6 +103,8 @@ components:
     in: internal/adapter/goose/**
   adapter-argon2id:
     in: internal/adapter/argon2id/**
+  adapter-compression:
+    in: internal/adapter/compression/**
   migrations:
     in: migrations/**
   migrationsum:
@@ -139,6 +147,7 @@ deps:
       - adapter-valkey
       - adapter-goose
       - adapter-argon2id
+      - adapter-compression
       - migrations
       - migrationsum
       - seed
@@ -189,6 +198,8 @@ deps:
   asset:
     mayDependOn:
       - asset
+    canUse:
+      - statigz
   view:
     mayDependOn:
       - view
@@ -231,6 +242,13 @@ deps:
       - domain
     canUse:
       - argon2
+  adapter-compression:
+    mayDependOn:
+      - adapter-compression
+      # Its tests mark a response the way a secret-bearing page does.
+      - web
+    canUse:
+      - compress
   migrations:
     mayDependOn:
       - migrations

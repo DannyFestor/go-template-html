@@ -148,6 +148,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get golang.org/x/crypto@<version>`.
 - **Afterwards**: read the `argon2` package's history for changed encodings or a new Argon2 version, then run `make test-go`. Hashes already stored must still verify: `TestAHashFromTheReferenceImplementationVerifiesUnderItsOwnParameters` checks one made by the reference implementation.
 
+## Response compression
+
+- **Pinned in**: `github.com/klauspost/compress` and `github.com/vearutop/statigz` in `go.mod` and `go.sum`, and `vite-plugin-compression2` in the `devDependencies` of `package.json` and `pnpm-lock.yaml`. Only `internal/adapter/compression` imports gzhttp, and only `internal/asset` imports statigz.
+- **Bump**: `go get github.com/klauspost/compress@<version> github.com/vearutop/statigz@<version>` and `VP_HOME="$PWD/.vite-plus" bin/vp add -D vite-plugin-compression2@<version>`. A new major version of either Go module also changes its path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: read the changelogs for changed gzhttp defaults, such as the minimum size or the zstd level, for how statigz picks an encoding, and for the plugin's default algorithms, levels and file names. Then run `make test vite-build test-feature` and check that `internal/asset/dist/assets/` holds a `.br` and a `.gz` next to each file.
+
 ## sql-formatter
 
 - **Pinned in**: `sql-formatter` in the `devDependencies` of `package.json`, and `pnpm-lock.yaml`.

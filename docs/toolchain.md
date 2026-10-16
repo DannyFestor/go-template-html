@@ -174,6 +174,20 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `signedurl.Signer` builds URLs on `APP_URL`. `Sign(path, query)` never expires, `SignTemporary(path, query)` expires after `SIGNED_URL_TTL` (default `2h`) and `SignTemporaryFor(path, query, ttl)` after `ttl`. A temporary URL carries its Unix expiry in `expires`. The `signature` parameter is the hex HMAC-SHA256 of the URL's path, including any path in `APP_URL`, then `?` and the query without `signature`, encoded with its keys sorted, so the host and the order of the parameters don't matter.
 - `signedurl.Verifier.Verify(url)` returns `signedurl.ErrInvalidSignature` for a missing or wrong signature, and `signedurl.ErrExpired` once the clock reaches `expires`. It compares with `hmac.Equal`.
 
+## Response compression
+
+| | |
+| --- | --- |
+| Version | gzhttp from `github.com/klauspost/compress` and `github.com/vearutop/statigz` in the main `go.mod`, `vite-plugin-compression2` in `package.json` ([upgrading.md](upgrading.md#response-compression)) |
+| Role | `internal/adapter/compression` wraps the whole middleware chain in gzhttp. `internal/asset` serves the `.br` and `.gz` files the Vite build writes next to each asset through statigz. |
+
+- gzhttp sends zstd or gzip at the library defaults (zstd `SpeedFastest`, gzip's default level), and zstd wins when the client's preferences tie. It compresses only `text/html`, `text/plain`, `text/css`, `text/javascript`, `application/javascript`, `application/json`, `image/svg+xml` and `application/xml`, and only from 1 KiB on. There's no config toggle.
+- `text/event-stream` isn't on the list, so a stream is never buffered. gzhttp keeps `Flush`, `Hijack` and `Unwrap`, so `/ws` and `http.ResponseController` work through it.
+- A response that already has a `Content-Encoding`, such as a precompressed asset, or a `Content-Range` goes out untouched.
+- `web.SkipCompression(w)` sends a response uncompressed, against BREACH. It sets gzhttp's `No-Gzip-Compression` header, which gzhttp strips before sending. Any response that reveals a server-generated secret calls it. The compression adapter's tests check the header through `web.SkipCompression`, so a replacement library has to pass them too.
+- `vite-plugin-compression2` writes a brotli and a gzip sibling of each built file at maximum level, in `make vite-build` and `make watch-vite` alike, skipping `manifest.json` and any file the compression would not shrink. No `.zst` is written: brotli 11 beats zstd for static text, and the plugin's zstd needs Node 22.15 or later.
+- statigz picks the smallest sibling the client accepts and falls back to the plain file. It sends `Content-Type: application/javascript` for `.js`, an `ETag` and `Vary: Accept-Encoding`. In production it indexes the embedded build once; in local mode it indexes `internal/asset/dist` on every request, because each rebuild renames the files.
+
 ## sql-formatter
 
 | | |
