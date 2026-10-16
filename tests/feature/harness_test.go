@@ -6,17 +6,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DannyFestor/go-template-html/internal/bootstrap"
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
 )
 
@@ -68,55 +66,18 @@ func (b *lockedBuffer) String() string {
 func startApp(t *testing.T) *app {
 	t.Helper()
 
-	return startAppOn(t, databaseConfig(testdb.New(t)))
+	return startAppOn(t, testdb.New(t))
 }
 
-func databaseConfig(database testdb.Database) bootstrap.DB {
-	return bootstrap.DB{
-		Host:                     database.Host,
-		Port:                     database.Port,
-		User:                     database.User,
-		Password:                 bootstrap.Secret(database.Password),
-		Name:                     database.Name,
-		Schema:                   database.Schema,
-		IdleInTransactionTimeout: time.Minute,
-		MaxConnLifetime:          time.Hour,
-		MaxConnLifetimeJitter:    time.Minute,
-		MaxConnIdleTime:          time.Minute,
-		ConnectTimeout:           time.Second,
-		Web:                      bootstrap.WebDB{MaxConns: 4, MinConns: 0, StatementTimeout: 5 * time.Second},
-	}
-}
-
-func startAppOn(t *testing.T, database bootstrap.DB) *app {
+func startAppOn(t *testing.T, database testdb.Database) *app {
 	t.Helper()
-
-	config := bootstrap.Config{
-		App: bootstrap.App{Name: appName, Env: bootstrap.EnvironmentProduction, ShutdownTimeout: time.Second},
-		HTTP: bootstrap.HTTP{
-			Addr:              "",
-			ReadHeaderTimeout: time.Second,
-			ReadTimeout:       time.Second,
-			WriteTimeout:      time.Second,
-			IdleTimeout:       time.Second,
-			MaxBodyBytes:      maxBodyBytes,
-			ReadinessCacheTTL: time.Second,
-		},
-		DB:  database,
-		Log: bootstrap.Log{Level: slog.LevelInfo},
-	}
 
 	logs := &lockedBuffer{mutex: sync.Mutex{}, buffer: bytes.Buffer{}}
 
-	webApp, err := bootstrap.NewWebApp(t.Context(), config, bootstrap.NewLogger(logs, config.App.Env, config.Log))
-	require.NoError(t, err)
-	t.Cleanup(webApp.Close)
-
+	webApp := testapp.New(t, testapp.Config(appName, database), logs)
 	mountProbes(webApp)
 
-	server := httptest.NewServer(webApp.Handler())
-	t.Cleanup(server.Close)
-
+	server := testapp.Serve(t, webApp.Handler())
 	server.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	return &app{server: server, logs: logs}

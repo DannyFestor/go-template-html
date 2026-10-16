@@ -11,6 +11,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/alpinejs": "^3.17.0",
     "@types/alpinejs__persist": "^3.17.0",
+    "@vitest/coverage-v8": "5.0.3",
     "happy-dom": "^20.14.6",
     "sql-formatter": "^15.9.0",
     "tailwindcss": "^4.3.3",

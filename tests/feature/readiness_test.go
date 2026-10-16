@@ -26,7 +26,7 @@ func TestReadyzReportsOKWhileTheDatabaseIsUp(t *testing.T) {
 func TestReadyzReportsUnavailableWhileTheDatabaseIsDown(t *testing.T) {
 	t.Parallel()
 
-	app := startAppOn(t, databaseConfig(testdb.Unreachable(t)))
+	app := startAppOn(t, testdb.Unreachable(t))
 
 	got := app.get(t, route.Readyz)
 

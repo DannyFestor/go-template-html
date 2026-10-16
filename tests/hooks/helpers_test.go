@@ -168,6 +168,14 @@ func requireOutput(t *testing.T, run scriptRun, wantMessage string) {
 	}
 }
 
+func requireOutputWithout(t *testing.T, run scriptRun, unwantedMessage string) {
+	t.Helper()
+
+	if strings.Contains(run.output, unwantedMessage) {
+		t.Errorf("output = %q, want it without %q", run.output, unwantedMessage)
+	}
+}
+
 func requireLines(t *testing.T, output string, want ...string) {
 	t.Helper()
 

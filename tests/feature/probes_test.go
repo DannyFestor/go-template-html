@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	maxBodyBytes  = 1 << 20
 	probeFailure  = "/probe/failure"
 	probeRedirect = "/probe/redirect"
 	probeForm     = "/probe/form"

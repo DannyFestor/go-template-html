@@ -112,6 +112,18 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/govulncheck.mod -tool golang.org/x/vuln/cmd/govulncheck@<version>`.
 - **Afterwards**: `make vuln vuln-agenthook`.
 
+## gremlins
+
+- **Pinned in**: `tools/gremlins.mod` and `tools/gremlins.sum`, alone so its dependencies stay out of the other tools' graphs.
+- **Bump**: `go get -modfile=tools/gremlins.mod -tool github.com/go-gremlins/gremlins/cmd/gremlins@<version>`.
+- **Afterwards**: read the changelog for renamed flags and for a fix to uncompilable mutants counting as killed, then run `make test-mutation`.
+
+## Playwright
+
+- **Pinned in**: the `tool github.com/mxschmitt/playwright-go/cmd/playwright` directive and the `github.com/mxschmitt/playwright-go` require in `go.mod`, which pin the CLI, the library and the driver and browser versions they download together.
+- **Bump**: `go get -tool github.com/mxschmitt/playwright-go/cmd/playwright@<version>`. If the module has started declaring `github.com/playwright-community/playwright-go`, switch to that path in the imports, `go.mod`, the `Makefile`, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: `make e2e-install`, which downloads the matching driver and browser, then `make services vite-build test-e2e`. CI downloads them again on its first run, because its cache is keyed on the version.
+
 ## pgx
 
 - **Pinned in**: `github.com/jackc/pgx/v5` in `go.mod` and `go.sum`.
@@ -139,8 +151,8 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 ## Vite+
 
 - **Pinned in**: `tools/vp.version` and `tools/vp.sha256` for `bin/vp`, and the `vite-plus` catalog entry and `vite` override in `pnpm-workspace.yaml` for the project ([ADR-0013](adr/0013-vite-plus-frontend-toolchain-with-a-build-watch-dev-loop.md)).
-- **Bump**: `make vp-upgrade`. It writes the latest release tag and its `vp-checksums.txt` into `tools/`, fetches the new `bin/vp`, moves the `vite-plus` devDependency to the same release, then runs `vp migrate`, which aligns the `vite` override with it and reinstalls.
-- **Afterwards**: read the release notes, because newer oxlint and oxfmt versions can flag code that passed before. Then run `make fmt-js lint-js typecheck-js test-js vite-build`.
+- **Bump**: `make vp-upgrade`. It writes the latest release tag and its `vp-checksums.txt` into `tools/`, fetches the new `bin/vp`, moves the `vite-plus` devDependency to the same release, then runs `vp migrate`, which aligns the `vite` override and `@vitest/coverage-v8` with it and reinstalls.
+- **Afterwards**: read the release notes, because newer oxlint and oxfmt versions can flag code that passed before. Then run `make fmt-js lint-js typecheck-js test-js coverage-js vite-build`.
 
 ## Node
 

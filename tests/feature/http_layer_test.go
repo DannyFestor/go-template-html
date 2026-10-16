@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 )
 
 func TestUnknownPathRendersTheNotFoundPage(t *testing.T) {
@@ -94,7 +96,7 @@ func TestRedirectSendsHXRedirectToPartialHTMXRequests(t *testing.T) {
 func TestBodyWithinTheLimitIsAccepted(t *testing.T) {
 	t.Parallel()
 
-	fetched := startApp(t).send(t, formOfSize(maxBodyBytes))
+	fetched := startApp(t).send(t, formOfSize(testapp.MaxBodyBytes))
 
 	assert.Equal(t, http.StatusNoContent, fetched.status)
 }
@@ -102,7 +104,7 @@ func TestBodyWithinTheLimitIsAccepted(t *testing.T) {
 func TestBodyOverTheLimitIsRejected(t *testing.T) {
 	t.Parallel()
 
-	fetched := startApp(t).send(t, formOfSize(maxBodyBytes+1))
+	fetched := startApp(t).send(t, formOfSize(testapp.MaxBodyBytes+1))
 
 	assert.Equal(t, http.StatusRequestEntityTooLarge, fetched.status)
 	assert.True(t, fetched.closesConnection, "the connection stays open after the 413")
