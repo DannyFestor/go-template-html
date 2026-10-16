@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	MaxBodyBytes      = 1 << 20
-	maxConnsPerServer = 4
-	statementTimeout  = 5 * time.Second
-	sessionLifetime   = time.Hour
+	MaxBodyBytes            = 1 << 20
+	maxConnsPerServer       = 4
+	statementTimeout        = 5 * time.Second
+	sessionLifetime         = time.Hour
+	argon2MinimumKiBPerLane = 8
 )
 
 func Config(name string, database testdb.Database, valkey testvalkey.Instance) bootstrap.Config {
@@ -36,11 +37,16 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 			CSRFTrustedOrigins: nil,
 			TrustedProxies:     nil,
 		},
-		DB:      dbConfig(database),
-		Valkey:  valkeyConfig(valkey),
-		Session: bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
-		Log:     bootstrap.Log{Level: slog.LevelInfo},
+		DB:              dbConfig(database),
+		Valkey:          valkeyConfig(valkey),
+		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
+		PasswordHashing: cheapestPasswordHashing(),
+		Log:             bootstrap.Log{Level: slog.LevelInfo},
 	}
+}
+
+func cheapestPasswordHashing() bootstrap.PasswordHashing {
+	return bootstrap.PasswordHashing{MemoryKiB: argon2MinimumKiBPerLane, Iterations: 1, Parallelism: 1}
 }
 
 func appURL() url.URL {
