@@ -1,6 +1,8 @@
 package testapp
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
 	"net/url"
 	"time"
@@ -16,6 +18,7 @@ const (
 	statementTimeout        = 5 * time.Second
 	sessionLifetime         = time.Hour
 	argon2MinimumKiBPerLane = 8
+	appKeyBytes             = 32
 )
 
 func Config(name string, database testdb.Database, valkey testvalkey.Instance) bootstrap.Config {
@@ -24,6 +27,7 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 			Name:            name,
 			Env:             bootstrap.EnvironmentProduction,
 			URL:             appURL(),
+			Key:             randomAppKey(),
 			ShutdownTimeout: time.Second,
 		},
 		HTTP: bootstrap.HTTP{
@@ -41,12 +45,24 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		Valkey:          valkeyConfig(valkey),
 		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
 		PasswordHashing: cheapestPasswordHashing(),
+		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
 		Log:             bootstrap.Log{Level: slog.LevelInfo},
 	}
 }
 
 func cheapestPasswordHashing() bootstrap.PasswordHashing {
 	return bootstrap.PasswordHashing{MemoryKiB: argon2MinimumKiBPerLane, Iterations: 1, Parallelism: 1}
+}
+
+func randomAppKey() bootstrap.AppKey {
+	return bootstrap.AppKey{Secret: bootstrap.Secret(base64.StdEncoding.EncodeToString(randomBytes(appKeyBytes)))}
+}
+
+func randomBytes(size int) []byte {
+	random := make([]byte, size)
+	_, _ = rand.Read(random)
+
+	return random
 }
 
 func appURL() url.URL {

@@ -103,7 +103,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | | |
 | --- | --- |
 | Version | stdlib `go/parser` and `go/ast` |
-| Role | Check code shape in `tests/architecture/`: the Action shape, no exported interfaces in `internal/`, no functional options, no `go` statements in the core layers. They run with `make test-go` and `make test`, and need no Docker. |
+| Role | Check code shape in `tests/architecture/`: the Action shape, no exported interfaces in `internal/`, no functional options, no `go` statements in the core layers, no variable-time byte comparisons (`bytes.Equal`, `bytes.Compare`, `string(…) ==`) in `internal/`. They run with `make test-go` and `make test`, and need no Docker. |
 
 - Test files and generated files are skipped.
 - An exception is a named entry in the allowlist inside the test, keyed by the subject the violation prints. An entry that matches no violation fails the test.
@@ -160,6 +160,19 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `Verify` derives with the memory, iterations and parallelism stored in the hash, so hashes made before a parameter change keep verifying. It compares in constant time. A value that isn't an Argon2id v19 PHC string with a 32-byte key and non-zero iterations and parallelism is an error rather than a mismatch.
 - `NewHasher` refuses zero iterations or parallelism, which `argon2` would panic on.
 - Only `internal/adapter/argon2id` imports `golang.org/x/crypto/argon2`.
+
+## App key, encryption and signed URLs
+
+| | |
+| --- | --- |
+| Version | stdlib `crypto/hkdf`, `crypto/aes`, `crypto/cipher` and `crypto/hmac` |
+| Role | `internal/adapter/appkey` derives one subkey per purpose from `APP_KEY`. `internal/adapter/aesgcm` encrypts on a subkey, and `internal/adapter/signedurl` signs and verifies URLs on one ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)). |
+
+- `APP_KEY` is 32 random bytes in standard base64, such as the output of `openssl rand -base64 32`. It has no default, and a missing or malformed key stops the app from booting. The config holds it as a `Secret`, so it never shows up in logs or errors.
+- `appkey.Key.Subkey` runs HKDF-SHA256 over the key with the purpose as its info label: `totp-secret`, `recovery-code`, `recovery-code-digest`, `signed-url` or `credential-fingerprint`. Renaming a label invalidates everything encrypted, signed or digested under it.
+- `aesgcm.Encrypter` seals with AES-256-GCM and a random 96-bit nonce, which it puts in front of the ciphertext. `Decrypt` returns `aesgcm.ErrUndecryptable` for a ciphertext that was tampered with, truncated or sealed under another key.
+- `signedurl.Signer` builds URLs on `APP_URL`. `Sign(path, query)` never expires, `SignTemporary(path, query)` expires after `SIGNED_URL_TTL` (default `2h`) and `SignTemporaryFor(path, query, ttl)` after `ttl`. A temporary URL carries its Unix expiry in `expires`. The `signature` parameter is the hex HMAC-SHA256 of the URL's path, including any path in `APP_URL`, then `?` and the query without `signature`, encoded with its keys sorted, so the host and the order of the parameters don't matter.
+- `signedurl.Verifier.Verify(url)` returns `signedurl.ErrInvalidSignature` for a missing or wrong signature, and `signedurl.ErrExpired` once the clock reaches `expires`. It compares with `hmac.Equal`.
 
 ## sql-formatter
 
@@ -288,7 +301,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - A `.templ` or `.go` edit reloads the page twice, once from templ and once from the Vite rebuild that Tailwind's scan triggers.
 - There is no Vite dev server, so dev serves the build through the same manifest code path as production.
 - The proxy forwards to the port in `HTTP_ADDR`, read from `.env` or the app's default `:8080`.
-- The app needs `APP_ENV`, so copy `.env.example` to `.env` first.
+- The app needs `APP_ENV` and `APP_KEY`, so copy `.env.example` to `.env` first and set `APP_KEY` to the output of `openssl rand -base64 32`.
 - templ opens the proxy in the browser at startup.
 - The output of the watchers is interleaved, because Make 3.81 has no `--output-sync`.
 - Ctrl-C stops every watcher. The containers keep running until `make down`.
