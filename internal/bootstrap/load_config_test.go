@@ -76,7 +76,9 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			MaxConnIdleTime:          30 * time.Minute,
 			ConnectTimeout:           5 * time.Second,
 			Web:                      bootstrap.WebDB{MaxConns: 10, MinConns: 0, StatementTimeout: 10 * time.Second},
+			Worker:                   bootstrap.WorkerDB{MaxConns: 12},
 		},
+		Queue: bootstrap.Queue{Concurrency: 10, PollInterval: time.Second},
 		Valkey: bootstrap.Valkey{
 			Host:      "valkey.internal",
 			Port:      6379,

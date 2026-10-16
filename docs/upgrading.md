@@ -87,6 +87,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get -modfile=tools/tools.mod -tool github.com/air-verse/air@<version>`.
 - **Afterwards**: read the changelog for renamed flags, because `watch-assets` configures air through flags alone. Then run `make dev`, edit a `.ts` file and check that the page reloads.
 
+## sqlc
+
+- **Pinned in**: `tools/tools.mod` and `tools/tools.sum`, shared with lefthook and air ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)).
+- **Bump**: `go get -modfile=tools/tools.mod -tool github.com/sqlc-dev/sqlc/cmd/sqlc@<version>`.
+- **Afterwards**: `make generate-sqlc`, which rewrites the version line of every file in `internal/adapter/postgres/internal/sqlcgen`, then `make services test-integration`. Commit the regenerated files with the bump.
+
 ## cog
 
 - **Pinned in**: `tools/cog.version` and `tools/cog.sha256`.

@@ -10,12 +10,30 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 )
 
-func New(t *testing.T, config bootstrap.Config, logs io.Writer) *bootstrap.WebApp {
+type App struct {
+	*bootstrap.WebApp
+
+	Worker *bootstrap.WorkerApp
+}
+
+func New(t *testing.T, config bootstrap.Config, logs io.Writer) *App {
 	t.Helper()
 
-	webApp, err := bootstrap.NewWebApp(t.Context(), config, bootstrap.NewLogger(logs, config.App.Env, config.Log))
+	logger := bootstrap.NewLogger(logs, config.App.Env, config.Log)
+
+	webApp, err := bootstrap.NewWebApp(t.Context(), config, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, webApp.Close()) })
 
-	return webApp
+	workerApp, err := bootstrap.NewWorkerApp(t.Context(), config, logger)
+	require.NoError(t, err)
+	t.Cleanup(workerApp.Close)
+
+	return &App{WebApp: webApp, Worker: workerApp}
+}
+
+func (a *App) RunQueuedJobs(t *testing.T) {
+	t.Helper()
+
+	require.NoError(t, a.Worker.RunDue(t.Context()))
 }

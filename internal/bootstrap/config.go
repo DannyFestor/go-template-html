@@ -8,5 +8,6 @@ type Config struct {
 	Session         Session
 	PasswordHashing PasswordHashing
 	SignedURL       SignedURL
+	Queue           Queue
 	Log             Log
 }
