@@ -63,8 +63,10 @@ VP_REPO := voidzero-dev/vite-plus
 # Deferred to the recipe, because `vp-upgrade` rewrites tools/vp.version after this file was read.
 VP_URL = https://github.com/$(VP_REPO)/releases/download/$(call pinned-version,vp)/vp-$(RUST_TARGET).tar.gz
 $(eval $(call pinned-binary,vp,$$(VP_URL),vp))
-# Without its own home, bin/vp sets itself up in ~/.vite-plus and repoints a global vp's shims at itself.
-VP := VP_HOME=$(CURDIR)/.vite-plus bin/vp
+# Without its own home, bin/vp sets itself up in ~/.vite-plus and repoints a global vp's shims at itself. Without
+# VP_SELF_SETUP_NO_MODIFY_PATH, every new home (each clone or worktree) appends a line sourcing it to ~/.zshrc and
+# ~/.zshenv, which outlives the checkout.
+VP := VP_HOME=$(CURDIR)/.vite-plus VP_SELF_SETUP_NO_MODIFY_PATH=1 bin/vp
 
 PROTECTED_REF := refs/heads/main
 

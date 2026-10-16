@@ -391,7 +391,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 
 - `tools/vp.sha256` is a verbatim copy of the release's `vp-checksums.txt`, so it also lists the Windows assets.
 - Make runs `bin/vp` with `VP_HOME=.vite-plus`, which keeps Node, pnpm and vp's own shims inside the checkout. Without it, `bin/vp` sets itself up in `~/.vite-plus` and repoints a global vp's shims at itself. Running `bin/vp` by hand needs the same variable.
-- The first run after `bin/vp` is fetched prints shell setup steps. Make never uses the shims, so they can be ignored.
+- The first run in a new `VP_HOME` sets vp up there. Make also passes `VP_SELF_SETUP_NO_MODIFY_PATH=1`, so that setup doesn't append a line sourcing `.vite-plus/env` to `~/.zshrc` and `~/.zshenv`. Without it, each clone or worktree leaves one behind that breaks every shell once the checkout is deleted. Make never uses the shims, so the setup steps it prints can be ignored.
 - The Vite root is the repo root, so Tailwind scans every file git doesn't ignore, `.templ` included. `vp build --watch` rebuilds when any of them changes.
 - `app.css` excludes `internal/asset/dist/` with `@source not`. Each build rewrites the tracked `.gitkeep` there, which would otherwise trigger the next build without end.
 - `internal/asset/src/app.ts` is the only entry. It imports `app.css`, so the manifest lists the stylesheet under the entry's `css` key.
