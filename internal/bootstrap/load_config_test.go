@@ -77,8 +77,9 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			Password:  bootstrap.Secret(""),
 			KeyPrefix: "go-template-html:",
 		},
-		Session: bootstrap.Session{IdleLifetime: 2 * time.Hour, AbsoluteLifetime: 24 * time.Hour},
-		Log:     bootstrap.Log{Level: slog.LevelInfo},
+		Session:         bootstrap.Session{IdleLifetime: 2 * time.Hour, AbsoluteLifetime: 24 * time.Hour},
+		PasswordHashing: bootstrap.PasswordHashing{MemoryKiB: 19 * 1024, Iterations: 2, Parallelism: 1},
+		Log:             bootstrap.Log{Level: slog.LevelInfo},
 	}, config)
 }
 

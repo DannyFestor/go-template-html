@@ -147,6 +147,19 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - The client IP is `RemoteAddr`. When the peer is in `TRUSTED_PROXIES` (comma-separated CIDRs, default none), it is the rightmost `X-Forwarded-For` entry outside them. `middleware.ClientIPFrom(ctx)` reads it.
 - Every response carries a strict `Content-Security-Policy` (`script-src 'self'`, `style-src 'self'`, no inline code), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin` and a `Permissions-Policy` that turns off camera, microphone, geolocation, payment and USB. `Strict-Transport-Security: max-age=31536000` is added only when `APP_URL` is https, without `includeSubDomains` or `preload`, so the template commits no other subdomain. htmx 4 adds its indicator CSS as a constructable stylesheet, which `style-src 'self'` doesn't block, so its config stays as it is.
 
+## Password hashing
+
+| | |
+| --- | --- |
+| Version | `golang.org/x/crypto` in the main `go.mod` ([upgrading.md](upgrading.md#xcrypto)) |
+| Role | `internal/adapter/argon2id` hashes and verifies passwords with Argon2id from `golang.org/x/crypto/argon2`, the only password hasher shipped ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)). Actions reach it behind interfaces they declare themselves. |
+
+- `PASSWORD_HASH_MEMORY_KIB` (default `19456`, 19 MiB), `PASSWORD_HASH_ITERATIONS` (default `2`) and `PASSWORD_HASH_PARALLELISM` (default `1`) are OWASP's Argon2id minimum.
+- A hash is a PHC string, `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<key>`, with a 16-byte salt from `crypto/rand` and a 32-byte key, both in unpadded base64, as the Argon2 reference implementation writes them.
+- `Verify` derives with the memory, iterations and parallelism stored in the hash, so hashes made before a parameter change keep verifying. It compares in constant time. A value that isn't an Argon2id v19 PHC string with a 32-byte key and non-zero iterations and parallelism is an error rather than a mismatch.
+- `NewHasher` refuses zero iterations or parallelism, which `argon2` would panic on.
+- Only `internal/adapter/argon2id` imports `golang.org/x/crypto/argon2`.
+
 ## sql-formatter
 
 | | |

@@ -28,6 +28,8 @@ vendors:
     in:
       - github.com/redis/go-redis/v9
       - github.com/redis/go-redis/v9/**
+  argon2:
+    in: golang.org/x/crypto/argon2
   goose:
     in:
       - github.com/pressly/goose/v3
@@ -93,6 +95,8 @@ components:
     in: internal/adapter/valkey/**
   adapter-goose:
     in: internal/adapter/goose/**
+  adapter-argon2id:
+    in: internal/adapter/argon2id/**
   migrations:
     in: migrations/**
   migrationsum:
@@ -134,6 +138,7 @@ deps:
       - adapter-postgres
       - adapter-valkey
       - adapter-goose
+      - adapter-argon2id
       - migrations
       - migrationsum
       - seed
@@ -220,6 +225,12 @@ deps:
       - testsupport
     canUse:
       - goose
+  adapter-argon2id:
+    mayDependOn:
+      - adapter-argon2id
+      - domain
+    canUse:
+      - argon2
   migrations:
     mayDependOn:
       - migrations

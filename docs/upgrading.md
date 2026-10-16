@@ -142,6 +142,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get github.com/redis/go-redis/v9@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
 - **Afterwards**: read the changelog for changed client defaults, such as timeouts, retries and the protocol version, and for commands that stop working against Valkey. Then run `make services test-integration vite-build test-feature`.
 
+## x/crypto
+
+- **Pinned in**: `golang.org/x/crypto` in `go.mod` and `go.sum`. Only `internal/adapter/argon2id` imports it, for `argon2` ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)).
+- **Bump**: `go get golang.org/x/crypto@<version>`.
+- **Afterwards**: read the `argon2` package's history for changed encodings or a new Argon2 version, then run `make test-go`. Hashes already stored must still verify: `TestAHashFromTheReferenceImplementationVerifiesUnderItsOwnParameters` checks one made by the reference implementation.
+
 ## sql-formatter
 
 - **Pinned in**: `sql-formatter` in the `devDependencies` of `package.json`, and `pnpm-lock.yaml`.
