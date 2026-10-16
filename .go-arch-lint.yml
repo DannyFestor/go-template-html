@@ -46,6 +46,9 @@ vendors:
   # depguard keeps it out of non-test files.
   gomock:
     in: go.uber.org/mock/**
+  # depguard keeps it out of non-test files.
+  playwright:
+    in: github.com/mxschmitt/playwright-go
 
 commonVendors:
   - testify
@@ -240,6 +243,8 @@ deps:
       - migrations
       - adapter-postgres
       - adapter-goose
+      # Feature and e2e tests build the real app the way cmd/web does (ADR-0011).
+      - bootstrap
     canUse:
       - pgx
   architecture-test:
@@ -263,3 +268,5 @@ deps:
       - factory
       - domain
       - route
+    canUse:
+      - playwright

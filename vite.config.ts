@@ -30,6 +30,12 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     include: [`${assetDir}/src/**/*.test.ts`],
+    coverage: {
+      provider: "v8",
+      include: [`${assetDir}/src/**/*.ts`],
+      reporter: ["text", "html"],
+      reportsDirectory: "tmp/coverage-js",
+    },
   },
   // The closest oxlint equivalents of funlen, cyclop, nestif and argument-limit in .golangci.yml.
   lint: {

@@ -160,10 +160,53 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Role | Exercise the app through real HTTP requests in `tests/feature/`, tagged `feature` (`make test-feature`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job. |
 
 - Each app the harness starts gets its own database from `testdb.New`, so the Compose Postgres has to be running (`make services`).
-- The harness builds the app in-process with `bootstrap.NewWebApp` in production mode and serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect and a form body. Responses are read in full, and HTML is parsed into goquery documents.
+- The harness builds the app in-process through `internal/testsupport/testapp`, which the e2e tests share: `testapp.New` runs `bootstrap.NewWebApp` in production mode on `testapp.Config`, and `testapp.Serve` serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect and a form body. Responses are read in full, and HTML is parsed into goquery documents.
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
 - goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` and in `web`, whose tests parse the rendered pages.
+
+## E2E tests
+
+| | |
+| --- | --- |
+| Version | playwright-go `github.com/mxschmitt/playwright-go` in the main `go.mod`, with its CLI as a `tool` directive ([upgrading.md](upgrading.md#playwright)) |
+| Role | Drive a real browser against the app in `tests/e2e/`, tagged `e2e` (`make test-e2e`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, in Chromium. |
+
+- The module still declares its old path, `github.com/mxschmitt/playwright-go`, so importing it as `github.com/playwright-community/playwright-go` fails.
+- `make e2e-install` installs the Playwright driver and the browser in `E2E_BROWSER` (default `chromium`) with its system dependencies, which needs `sudo` on Linux. `make setup` does not run it. The driver and the browsers live in the user cache (`~/.cache/ms-playwright-go` and `~/.cache/ms-playwright` on Linux, `~/Library/Caches/` on macOS), never in the repo.
+- `E2E_BROWSER=firefox` or `webkit` switches the browser for `make e2e-install` and `make test-e2e`. Without the variable, as under a bare `go test -tags e2e`, the tests refuse to start.
+- `TestMain` launches one browser for the package. Each test gets its own app and database through `internal/testsupport/testapp`, as in the feature tests, and its own browser context.
+- `openPage` records the console errors and uncaught exceptions of the page, which catch a script or stylesheet the CSP blocks or the server fails to serve.
+- Assertions use Playwright's auto-waiting `expect`, so the tests never sleep.
+- Like the feature tests, the app embeds `internal/asset/dist`, so run `make vite-build` first, and the Compose Postgres has to be running.
+- playwright-go is test-only: depguard keeps it out of non-test files, and go-arch-lint allows it only in `e2e-test`.
+- `make test-all` runs `test`, `test-integration`, `test-feature` and `test-e2e`.
+
+## Coverage
+
+| | |
+| --- | --- |
+| Version | Go's `go tool covdata` and `go tool cover`, and `@vitest/coverage-v8` in the `devDependencies` of `package.json` |
+| Role | `make coverage` reports the merged Go coverage of the unit, integration and feature tests, then the JS coverage. CI runs it in the `test` job. No hook runs it, and neither does `make check`. |
+
+- Each test kind runs with `-cover -coverpkg=./internal/...` and writes its raw counters into its own directory under `tmp/coverage/` through `-test.gocoverdir`. `go tool covdata textfmt` merges them into `tmp/coverage/merged.out`. The kinds run without `-race`, which `make test-all` already covers.
+- `scripts/drop-generated-coverage.sh` writes `tmp/coverage/go.out` without the files that carry a `// Code generated … DO NOT EDIT.` line, such as the `*_templ.go` views. `go tool cover` renders it into `tmp/coverage.html`.
+- `scripts/coverage-summary.sh` writes the total and the per-package numbers of `go.out` as Markdown to `tmp/coverage/summary.md`. Below the soft target of 80% it adds a warning but never fails. In CI the summary also goes to `$GITHUB_STEP_SUMMARY`, which GitHub shows on the run's page.
+- `-coverpkg=./internal/...` takes in the test harness in `internal/testsupport/` too, so it counts toward the total.
+- The e2e tests are left out of the Go coverage.
+- JS coverage is reported apart from the Go coverage: `make coverage-js` runs Vitest with the v8 provider over `internal/asset/src/`, prints a text report and writes an HTML one to `tmp/coverage-js/`.
+- `@vitest/coverage-v8` has to be on the exact Vitest version that Vite+ bundles, which `vp migrate` keeps aligned.
+
+## Mutation testing
+
+| | |
+| --- | --- |
+| Version | gremlins, in `tools/gremlins.mod` ([upgrading.md](upgrading.md#gremlins)) |
+| Role | `make test-mutation` mutates the code in `internal/` and runs the unit tests against each mutant, writing the results to `tmp/gremlins.json`. It runs on demand only: no hook, `make check` or CI job runs it. |
+
+- It skips the generated `*_templ.go` files and the test harness in `internal/testsupport/`.
+- Its default timeout scales from a coverage run that hits the build cache, while each mutant rebuilds its package, so most mutants timed out. `--timeout-coefficient 10` gives them room.
+- There is no threshold, because gremlins counts a mutant that does not compile as killed.
 
 ## shellcheck
 
@@ -393,7 +436,7 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 | --- | --- |
 | `lint` | `make fmt-check`, `lint`, `lint-agenthook`, `lint-js`, `typecheck-js`, `lint-shell` and `arch` |
 | `generate` | `make generate`, then `make drift-check`, which fails if that changed a tracked file or created a new one, then `make migrations-unchanged`, which fails if a migration already on `origin/main` was modified, renamed or deleted. It checks out the full history to have `origin/main`. |
-| `test` | `make services`, `make test` and `make test-integration`, then `make vite-build` and `make test-feature`, because the feature tests run the app on the embedded build |
+| `test` | `make e2e-install` and `make services`, then `make vite-build`, because the feature and e2e tests run the app on the embedded build, then `make test-all` and `make coverage` |
 | `vuln` | `make vuln` and `make vuln-agenthook` |
 | `image` | `make image`, which builds the [production image](#production-image) without pushing it |
 | `pr-title` | `make lint-pr-title`, which runs `cog verify` on the pull request's title |
@@ -401,10 +444,10 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 - `.github/workflows/ci.yaml` runs the first five jobs in parallel on pull requests and on pushes to `main`. A newer run cancels an older one on the same ref.
 - `pr-title` has its own workflow, `.github/workflows/pr-title.yml`, which also runs when a pull request is edited. Editing a title re-runs only that check.
 - Every job runs on `ubuntu-24.04` with `permissions: contents: read`, a checkout without persisted credentials and a timeout: 10 minutes, 20 for `test` and 5 for `pr-title`.
-- Every job calls only Make targets ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)), apart from the `pr-title` step that gives `cog` a git identity. Steps that several jobs share are written once as YAML anchors.
+- Every job calls only Make targets ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)), apart from the `pr-title` step that gives `cog` a git identity and the `test` step that writes the output of `make playwright-version` to `$GITHUB_OUTPUT` for the Playwright cache key. Steps that several jobs share are written once as YAML anchors.
 - Actions are pinned by full commit SHA, with the version in a trailing comment. Nothing bumps them automatically ([upgrading.md](upgrading.md#github-actions)).
 - Go comes from `actions/setup-go`, which reads the `toolchain` line of `go.mod`. Node comes only from `bin/vp` through `make js-install`, so `.node-version` stays its only pin. The `image` job sets up neither, because the Dockerfile's build stage brings both.
-- Caches: the Go module and build cache, one per job and keyed on `go.mod`, `go.sum`, `tools/*.sum` and `tools/agenthook/go.sum`, because the jobs build different packages and tools while setup-go's own cache would share one key between them; `bin/`, keyed on `tools/*.version`, the checksum files and `scripts/install-pinned-binary.sh`; the pnpm store, keyed on `pnpm-lock.yaml`; and the golangci-lint cache, keyed on `tools/golangci-lint.sum` plus the commit, so a pull request restores the newest one, which includes `main`'s.
+- Caches: the Go module and build cache, one per job and keyed on `go.mod`, `go.sum`, `tools/*.sum` and `tools/agenthook/go.sum`, because the jobs build different packages and tools while setup-go's own cache would share one key between them; `bin/`, keyed on `tools/*.version`, the checksum files and `scripts/install-pinned-binary.sh`; the pnpm store, keyed on `pnpm-lock.yaml`; the Playwright driver and browsers, keyed on the playwright-go version that `make playwright-version` prints; and the golangci-lint cache, keyed on `tools/golangci-lint.sum` plus the commit, so a pull request restores the newest one, which includes `main`'s.
 - The title reaches `cog` through the `PR_TITLE` environment variable and is never interpolated into the script, so a crafted title cannot run as code. `cog` runs without `--ignore-fixup-commits` or `--ignore-merge-commits`, because the squash merge makes the title the commit on `main`. The job sets a git identity first, because `cog` reads the committer from git config.
 - `make drift-check` marks new files as intent-to-add before it diffs, so `git diff` sees them. Run locally, it does that to your untracked files too, so it is meant for a clean checkout like CI's.
 - The runner image is pinned to `ubuntu-24.04` rather than `ubuntu-latest`, so GitHub moving `latest` to a new release cannot break CI unannounced ([upgrading.md](upgrading.md#runner-image)).

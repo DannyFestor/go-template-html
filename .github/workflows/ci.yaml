@@ -92,11 +92,20 @@ jobs:
       - *cache-pinned-binaries
       - *cache-pnpm-store
       - *js-install
+      - id: playwright
+        run: echo "version=$(make --silent playwright-version)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Playwright driver and browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/.cache/ms-playwright-go
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - run: make e2e-install
       - run: make services
-      - run: make test
-      - run: make test-integration
       - run: make vite-build
-      - run: make test-feature
+      - run: make test-all
+      - run: make coverage
 
   vuln:
     runs-on: ubuntu-24.04

@@ -14,6 +14,9 @@ GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
 AIR := go tool -modfile=tools/tools.mod air
+GREMLINS := go tool -modfile=tools/gremlins.mod gremlins
+PLAYWRIGHT := go tool playwright
+PLAYWRIGHT_MODULE := github.com/mxschmitt/playwright-go
 # Only the root module has templ files, so templ runs there whatever GO_MODULE names.
 TEMPL := go tool templ
 # templ fmt and generate -f act on their first file only, so FILES gets one run per file, or the whole tree without it.
@@ -78,6 +81,7 @@ DB_SCHEMA ?= public
 # Tests never read .env, so the harness gets the connection to the Compose Postgres from the environment.
 TEST_DB_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) \
 	DB_SCHEMA=$(DB_SCHEMA)
+E2E_BROWSER ?= chromium
 PSQL := docker compose exec -T postgres psql -v ON_ERROR_STOP=1 --quiet -U $(DB_USER)
 MIGRATIONS_DIR := migrations
 
@@ -100,7 +104,26 @@ GO_BUILD_PACKAGES = $(if $(FILES),$(call go-package-dirs,$(filter-out %_test.go,
 # These hold only tagged tests, which go test refuses to build when named without their tag. ./... skips them.
 TAGGED_TEST_DIRS := ./tests/feature/ ./tests/e2e/
 UNTAGGED_TEST_PACKAGES = $(filter-out $(TAGGED_TEST_DIRS),$(GO_PACKAGES))
+INTEGRATION_TESTS := -tags integration ./internal/...
+FEATURE_TESTS := -tags feature ./tests/feature/...
+E2E_TESTS := -tags e2e ./tests/e2e/...
+GO_TEST := $(GO) test -shuffle=on
 on-packages = $(if $(2),$(1) $(2))
+
+comma := ,
+empty :=
+space := $(empty) $(empty)
+COVERAGE_DIR := tmp/coverage
+COVERAGE_KIND_DIRS := $(addprefix $(COVERAGE_DIR)/,unit integration feature)
+MERGED_COVERAGE_PROFILE := $(COVERAGE_DIR)/merged.out
+COVERAGE_PROFILE := $(COVERAGE_DIR)/go.out
+COVERAGE_HTML := tmp/coverage.html
+COVERAGE_SUMMARY := $(COVERAGE_DIR)/summary.md
+COVERAGE_TARGET_PERCENT := 80
+# -test.gocoverdir keeps each test kind's raw counters apart, so `go tool covdata` can merge them into one profile.
+# $(1) test kind, $(2) go test arguments that select it
+go-test-coverage = $(GO_TEST) -cover -covermode=atomic -coverpkg=./internal/... $(2) \
+	-args -test.gocoverdir=$(CURDIR)/$(COVERAGE_DIR)/$(1)
 
 AGENTHOOK_MODULE := tools/agenthook
 AGENTHOOK_SOURCES := $(shell find $(AGENTHOOK_MODULE) -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*') \
@@ -148,6 +171,15 @@ js-install: bin/vp
 .PHONY: hooks-install
 hooks-install:
 	$(LEFTHOOK) install
+
+.PHONY: e2e-install
+e2e-install: ## Install the Playwright driver and E2E_BROWSER (default chromium) with its system dependencies
+	$(PLAYWRIGHT) install --with-deps $(E2E_BROWSER)
+
+# CI keys the cache of the Playwright driver and browsers on it.
+.PHONY: playwright-version
+playwright-version:
+	@go list -m -f '{{.Version}}' $(PLAYWRIGHT_MODULE)
 
 .PHONY: github-setup
 github-setup: ## Create or update the GitHub repo's main ruleset and merge settings with gh, which needs admin rights
@@ -351,7 +383,7 @@ test: test-go test-agenthook test-js ## Run the Go and JS tests that need no Doc
 
 .PHONY: test-go
 test-go: ## Run the Go unit, architecture and tooling tests in GO_MODULE, or only the packages holding FILES
-	$(call on-packages,$(GO) test -race -shuffle=on,$(UNTAGGED_TEST_PACKAGES))
+	$(call on-packages,$(GO_TEST) -race,$(UNTAGGED_TEST_PACKAGES))
 
 .PHONY: test-agenthook
 test-agenthook: ## Run the agent hook tests in tools/agenthook
@@ -363,12 +395,78 @@ test-js: bin/vp ## Run the JS unit tests with Vitest
 
 .PHONY: test-integration
 test-integration: ## Run the integration tests in internal/ against the Compose Postgres, each in its own database
-	$(TEST_DB_ENV) $(GO) test -race -shuffle=on -tags integration ./internal/...
+	$(TEST_DB_ENV) $(GO_TEST) -race $(INTEGRATION_TESTS)
 
 # The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
 .PHONY: test-feature
 test-feature: ## Run the feature tests in tests/feature against the last `make vite-build` and the Compose Postgres
-	$(TEST_DB_ENV) $(GO) test -race -shuffle=on -tags feature ./tests/feature/...
+	$(TEST_DB_ENV) $(GO_TEST) -race $(FEATURE_TESTS)
+
+# The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
+.PHONY: test-e2e
+test-e2e: ## Run the e2e tests in tests/e2e in E2E_BROWSER against the last `make vite-build` and the Compose Postgres
+	$(TEST_DB_ENV) E2E_BROWSER=$(E2E_BROWSER) $(GO_TEST) -race $(E2E_TESTS)
+
+.PHONY: test-all
+test-all: test test-integration test-feature test-e2e ## Run every test kind against the last `make vite-build` and the Compose services
+
+.PHONY: coverage
+coverage: coverage-go coverage-js ## Report the merged Go coverage of the unit, integration and feature tests, then the JS coverage
+
+.PHONY: coverage-go
+coverage-go: coverage-clean coverage-dirs coverage-unit coverage-integration coverage-feature coverage-merge \
+	coverage-drop-generated coverage-html coverage-summary coverage-print
+
+.PHONY: coverage-clean
+coverage-clean:
+	rm -rf $(COVERAGE_DIR)
+
+.PHONY: coverage-dirs
+coverage-dirs:
+	mkdir -p $(COVERAGE_KIND_DIRS)
+
+.PHONY: coverage-unit
+coverage-unit:
+	$(call go-test-coverage,unit,$(UNTAGGED_TEST_PACKAGES))
+
+.PHONY: coverage-integration
+coverage-integration:
+	$(TEST_DB_ENV) $(call go-test-coverage,integration,$(INTEGRATION_TESTS))
+
+.PHONY: coverage-feature
+coverage-feature:
+	$(TEST_DB_ENV) $(call go-test-coverage,feature,$(FEATURE_TESTS))
+
+.PHONY: coverage-merge
+coverage-merge:
+	go tool covdata textfmt -i=$(subst $(space),$(comma),$(COVERAGE_KIND_DIRS)) -o $(MERGED_COVERAGE_PROFILE)
+
+.PHONY: coverage-drop-generated
+coverage-drop-generated:
+	scripts/drop-generated-coverage.sh $(MERGED_COVERAGE_PROFILE) > $(COVERAGE_PROFILE)
+
+.PHONY: coverage-html
+coverage-html:
+	go tool cover -html=$(COVERAGE_PROFILE) -o $(COVERAGE_HTML)
+
+.PHONY: coverage-summary
+coverage-summary:
+	scripts/coverage-summary.sh $(COVERAGE_PROFILE) $(COVERAGE_TARGET_PERCENT) > $(COVERAGE_SUMMARY)
+
+# GitHub shows GITHUB_STEP_SUMMARY on the CI run's page. Elsewhere the summary only goes to the terminal.
+.PHONY: coverage-print
+coverage-print:
+	tee -a "$${GITHUB_STEP_SUMMARY:-/dev/null}" < $(COVERAGE_SUMMARY)
+
+.PHONY: coverage-js
+coverage-js: bin/vp ## Report the coverage of the JS unit tests and write it to tmp/coverage-js/
+	$(VP) test --coverage
+
+# Each mutant rebuilds its package, which the default timeout, scaled from the cached coverage run, rarely allows.
+.PHONY: test-mutation
+test-mutation: | tmp ## Mutate internal/ with gremlins and run the unit tests against each mutant, writing tmp/gremlins.json
+	$(GREMLINS) unleash --exclude-files '_templ\.go$$' --exclude-files '^testsupport/' --timeout-coefficient 10 \
+		--output $(CURDIR)/tmp/gremlins.json ./internal
 
 # psql runs a query's output as statements only through \gexec, which it reads from its input.
 .PHONY: test-db-clean
