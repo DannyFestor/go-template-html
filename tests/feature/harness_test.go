@@ -25,8 +25,11 @@ import (
 const appName = "Feature Test App"
 
 type app struct {
-	server *httptest.Server
-	logs   *lockedBuffer
+	*testapp.App
+
+	server    *httptest.Server
+	logs      *lockedBuffer
+	probeJobs *probeJobHandler
 }
 
 type response struct {
@@ -84,17 +87,18 @@ func startAppOn(t *testing.T, config bootstrap.Config) *app {
 
 	logs := &lockedBuffer{mutex: sync.Mutex{}, buffer: bytes.Buffer{}}
 
-	webApp := testapp.New(t, config, logs)
-	mountProbes(webApp)
+	testApp := testapp.New(t, config, logs)
+	mountProbes(testApp.WebApp)
+	probeJobs := mountJobProbe(testApp)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	server := testapp.Serve(t, webApp.Handler())
+	server := testapp.Serve(t, testApp.Handler())
 	server.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	server.Client().Jar = jar
 
-	return &app{server: server, logs: logs}
+	return &app{App: testApp, server: server, logs: logs, probeJobs: probeJobs}
 }
 
 func (a *app) cookies(t *testing.T) []*http.Cookie {

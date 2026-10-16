@@ -20,6 +20,7 @@ import (
 
 type WebApp struct {
 	Mux       *http.ServeMux
+	Jobs      *postgres.JobQueue
 	Responder *web.Responder
 	handler   http.Handler
 	pool      *postgres.Pool
@@ -63,7 +64,7 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		return nil, err
 	}
 
-	app := &WebApp{Mux: nil, Responder: nil, handler: nil, pool: nil, valkey: nil}
+	app := &WebApp{Mux: nil, Jobs: nil, Responder: nil, handler: nil, pool: nil, valkey: nil}
 
 	err = app.connect(ctx, config)
 	if err != nil {
@@ -107,6 +108,7 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 	}
 
 	a.pool = pool
+	a.Jobs = newJobQueue(pool)
 
 	client, err := valkey.Open(valkeyConfig(config.Valkey))
 	if err != nil {

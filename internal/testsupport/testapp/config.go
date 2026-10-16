@@ -15,6 +15,7 @@ import (
 const (
 	MaxBodyBytes            = 1 << 20
 	maxConnsPerServer       = 4
+	jobConcurrency          = 1
 	statementTimeout        = 5 * time.Second
 	sessionLifetime         = time.Hour
 	argon2MinimumKiBPerLane = 8
@@ -46,6 +47,7 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
+		Queue:           bootstrap.Queue{Concurrency: jobConcurrency, PollInterval: time.Second},
 		Log:             bootstrap.Log{Level: slog.LevelInfo},
 	}
 }
@@ -99,6 +101,7 @@ func dbConfig(database testdb.Database) bootstrap.DB {
 			MinConns:         0,
 			StatementTimeout: statementTimeout,
 		},
+		Worker: bootstrap.WorkerDB{MaxConns: maxConnsPerServer},
 	}
 }
 

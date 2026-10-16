@@ -1,2 +1,3 @@
 *_templ.go linguist-generated=true
 mock_*_test.go linguist-generated=true
+internal/adapter/postgres/internal/sqlcgen/*.go linguist-generated=true

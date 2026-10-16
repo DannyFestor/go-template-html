@@ -81,6 +81,8 @@ components:
     in: internal/handler/**
   job:
     in: internal/job/**
+  worker:
+    in: internal/worker/**
   middleware:
     in: internal/middleware/**
   web:
@@ -137,6 +139,7 @@ deps:
       - validate
       - handler
       - job
+      - worker
       - middleware
       - web
       - view
@@ -180,6 +183,11 @@ deps:
     mayDependOn:
       - domain
       - action
+  # The worker runtime reaches the queue only through its own jobStore interface (ADR-0012).
+  worker:
+    mayDependOn:
+      - worker
+      - domain
   middleware:
     mayDependOn:
       - middleware
@@ -216,6 +224,9 @@ deps:
       - domain
       # Its integration tests run each in a database of their own.
       - testsupport
+      # Its job queue integration tests run jobs through the worker runtime and stamp IDs with the UUIDv7 generator.
+      - worker
+      - adapter
     canUse:
       - pgx
   adapter-valkey:
@@ -292,6 +303,8 @@ deps:
       - route
       # Mounts probe routes on the app's mux through the Responder.
       - web
+      # Registers a probe job on the worker app.
+      - worker
     canUse:
       - goquery
   e2e-test:

@@ -14,6 +14,7 @@ GITLEAKS := go tool -modfile=tools/gitleaks.mod gitleaks
 GOVULNCHECK := $(GO) tool -modfile=$(CURDIR)/tools/govulncheck.mod govulncheck
 LEFTHOOK := go tool -modfile=tools/tools.mod lefthook
 AIR := go tool -modfile=tools/tools.mod air
+SQLC := go tool -modfile=tools/tools.mod sqlc
 GREMLINS := go tool -modfile=tools/gremlins.mod gremlins
 PLAYWRIGHT := go tool playwright
 PLAYWRIGHT_MODULE := github.com/mxschmitt/playwright-go
@@ -206,7 +207,7 @@ reset: ## Stop and remove the service containers and delete the Postgres and Val
 # bin/vp is fetched up front, so its download does not interleave with the output of the parallel watchers.
 .PHONY: dev
 dev: bin/vp services generate migrate ## Start the services and migrate, then rebuild, restart and reload on every change
-	$(MAKE) -j watch-templ watch-vite watch-assets
+	$(MAKE) -j watch-templ watch-vite watch-assets watch-worker
 
 .PHONY: watch-templ
 watch-templ: ## Regenerate templ files, rerun cmd/web on Go changes and reload the browser through the templ proxy
@@ -221,6 +222,11 @@ watch-vite: bin/vp ## Rebuild the frontend assets into internal/asset/dist/ on e
 watch-assets: ## Reload the browser through the templ proxy whenever internal/asset/dist/ changes
 	$(AIR) --build.cmd "$(TEMPL) generate --notify-proxy" --build.entrypoint true \
 		--build.include_dir internal/asset/dist --build.include_ext css,js,json
+
+.PHONY: watch-worker
+watch-worker: ## Rebuild and restart cmd/worker on every Go change
+	$(AIR) --build.cmd "go build -o tmp/worker ./cmd/worker" --build.entrypoint tmp/worker --build.include_ext go \
+		--build.exclude_dir node_modules,tmp,testdata,.vite-plus --build.log air-worker.log
 
 ##@ Database
 
@@ -249,11 +255,15 @@ drop-schema:
 ##@ Code
 
 .PHONY: generate
-generate: generate-templ generate-go ## Regenerate the generated code
+generate: generate-templ generate-sqlc generate-go ## Regenerate the generated code
 
 .PHONY: generate-templ
 generate-templ: ## Regenerate the Go code of every templ file, or only of the templ files in FILES
 	$(call templ-on-files,generate -f,generate)
+
+.PHONY: generate-sqlc
+generate-sqlc: ## Regenerate the Go code of the queries in queries/ against the schema in migrations/
+	$(SQLC) generate
 
 .PHONY: generate-go
 generate-go: ## Run go generate in GO_MODULE
@@ -478,11 +488,15 @@ test-db-clean: ## Drop the test databases that failed tests kept, and every temp
 ##@ Build
 
 .PHONY: build
-build: js-install vite-build build-web build-migrate ## Build the frontend assets, then cmd/web and cmd/migrate into bin/
+build: js-install vite-build build-web build-worker build-migrate ## Build the frontend assets, then cmd/web, cmd/worker and cmd/migrate into bin/
 
 .PHONY: build-web
 build-web:
 	CGO_ENABLED=0 go build -trimpath -ldflags='$(GO_LDFLAGS)' -o bin/web ./cmd/web
+
+.PHONY: build-worker
+build-worker:
+	CGO_ENABLED=0 go build -trimpath -ldflags='$(GO_LDFLAGS)' -o bin/worker ./cmd/worker
 
 .PHONY: build-migrate
 build-migrate:

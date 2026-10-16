@@ -15,10 +15,15 @@ type DB struct {
 	MaxConnIdleTime          time.Duration `env:"DB_MAX_CONN_IDLE_TIME"          envDefault:"30m"`
 	ConnectTimeout           time.Duration `env:"DB_CONNECT_TIMEOUT"             envDefault:"5s"`
 	Web                      WebDB
+	Worker                   WorkerDB
 }
 
 type WebDB struct {
 	MaxConns         int32         `env:"WEB_DB_MAX_CONNS"         envDefault:"10"`
 	MinConns         int32         `env:"WEB_DB_MIN_CONNS"         envDefault:"0"`
 	StatementTimeout time.Duration `env:"WEB_DB_STATEMENT_TIMEOUT" envDefault:"10s"`
+}
+
+type WorkerDB struct {
+	MaxConns int32 `env:"WORKER_DB_MAX_CONNS" envDefault:"12"`
 }

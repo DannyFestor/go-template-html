@@ -12,6 +12,14 @@ func webPostgresConfig(config DB) postgres.Config {
 	return pool
 }
 
+func workerPostgresConfig(config DB) postgres.Config {
+	pool := postgresConfig(config)
+	pool.MaxConns = config.Worker.MaxConns
+	pool.IdleInTransactionTimeout = config.IdleInTransactionTimeout
+
+	return pool
+}
+
 func postgresConfig(config DB) postgres.Config {
 	return postgres.Config{
 		Host:                     config.Host,
