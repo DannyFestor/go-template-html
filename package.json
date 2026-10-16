@@ -16,6 +16,7 @@
     "sql-formatter": "^15.9.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
+    "vite-plugin-compression2": "^2.5.3",
     "vite-plus": "catalog:"
   },
   "packageManager": "pnpm@12.11.2"

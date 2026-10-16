@@ -92,6 +92,50 @@ func TestImmutableServesTheCurrentFileUncachedForAnOutdatedHash(t *testing.T) {
 	assert.Equal(t, "no-cache", response.Header().Get("Cache-Control"))
 }
 
+func TestServesThePrecompressedSiblingTheClientAccepts(t *testing.T) {
+	t.Parallel()
+
+	server := newImmutable(t, dist())
+
+	for encoding, body := range map[string]string{"br": "brotli body{}", "gzip": "gzip body{}"} {
+		t.Run(encoding, func(t *testing.T) {
+			t.Parallel()
+
+			response := getAccepting(t, server, "/assets/app-fimgy6vt.css", encoding)
+
+			assert.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, encoding, response.Header().Get("Content-Encoding"))
+			assert.Equal(t, body, response.Body.String())
+			assert.Equal(t, "text/css; charset=utf-8", response.Header().Get("Content-Type"))
+			assert.Equal(t, "public, max-age=31536000, immutable", response.Header().Get("Cache-Control"))
+		})
+	}
+}
+
+func TestServesTheUncompressedFileToAClientAcceptingNeitherEncoding(t *testing.T) {
+	t.Parallel()
+
+	response := getAccepting(t, newImmutable(t, dist()), "/assets/app-fimgy6vt.css", "zstd")
+
+	assert.Empty(t, response.Header().Get("Content-Encoding"))
+	assert.Equal(t, "body{}", response.Body.String())
+}
+
+func TestLiveServesThePrecompressedSiblingOfTheLatestBuild(t *testing.T) {
+	t.Parallel()
+
+	files := dist()
+	server := asset.NewLive(files)
+	files["manifest.json"] = file(`{"internal/asset/src/app.ts": {"file": "assets/app-n3wb1ld0.js"}}`)
+	files["assets/app-n3wb1ld0.js"] = file("console.log('rebuilt')")
+	files["assets/app-n3wb1ld0.js.br"] = file("brotli rebuilt")
+
+	response := getAccepting(t, server, "/assets/app-n3wb1ld0.js", "br")
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, "brotli rebuilt", response.Body.String())
+}
+
 func TestServesNothingTheBuildDidNotEmit(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +144,13 @@ func TestServesNothingTheBuildDidNotEmit(t *testing.T) {
 	files["assets/admin-nx4752wa.js"] = file("console.log('admin')")
 	server := newImmutable(t, files)
 
-	for _, path := range []string{"/manifest.json", "/.gitkeep", "/assets/admin-nx4752wa.js", "/assets/app.js"} {
+	for _, path := range []string{
+		"/manifest.json",
+		"/.gitkeep",
+		"/assets/admin-nx4752wa.js",
+		"/assets/app.js",
+		"/assets/app-fimgy6vt.css.br",
+	} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 
@@ -164,17 +214,28 @@ func newImmutable(t *testing.T, files fstest.MapFS) *asset.Server {
 func get(t *testing.T, server http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
+	return getAccepting(t, server, path, "")
+}
+
+func getAccepting(t *testing.T, server http.Handler, path, encodings string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+	request.Header.Set("Accept-Encoding", encodings)
+
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+	server.ServeHTTP(recorder, request)
 
 	return recorder
 }
 
 func dist() fstest.MapFS {
 	return fstest.MapFS{
-		"manifest.json":           file(manifest),
-		"assets/app-nx4752wa.js":  file("console.log('app')"),
-		"assets/app-fimgy6vt.css": file("body{}"),
+		"manifest.json":              file(manifest),
+		"assets/app-nx4752wa.js":     file("console.log('app')"),
+		"assets/app-fimgy6vt.css":    file("body{}"),
+		"assets/app-fimgy6vt.css.br": file("brotli body{}"),
+		"assets/app-fimgy6vt.css.gz": file("gzip body{}"),
 	}
 }
 

@@ -1,4 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
+import { compression } from "vite-plugin-compression2";
 import { defineConfig, type Plugin } from "vite-plus";
 
 const assetDir = "internal/asset";
@@ -12,7 +13,11 @@ const keepOutputDirInGit: Plugin = {
 };
 
 export default defineConfig({
-  plugins: [tailwindcss(), keepOutputDirInGit],
+  plugins: [
+    tailwindcss(),
+    keepOutputDirInGit,
+    compression({ algorithms: ["brotliCompress", "gzip"], exclude: /^manifest\.json$/ }),
+  ],
   build: {
     outDir: `${assetDir}/dist`,
     emptyOutDir: true,

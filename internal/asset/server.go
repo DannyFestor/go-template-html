@@ -10,10 +10,14 @@ type manifestSource interface {
 	load() (manifest, error)
 }
 
+type fileServerSource interface {
+	load() http.Handler
+}
+
 type Server struct {
-	files     fs.FS
-	manifests manifestSource
-	caching   cachePolicy
+	manifests   manifestSource
+	fileServers fileServerSource
+	caching     cachePolicy
 }
 
 func NewImmutable(files fs.FS) (*Server, error) {
@@ -22,11 +26,19 @@ func NewImmutable(files fs.FS) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{files: files, manifests: fixedManifest{manifest: loaded}, caching: fixedBuildCaching()}, nil
+	return &Server{
+		manifests:   fixedManifest{manifest: loaded},
+		fileServers: fixedFileServer{handler: precompressedFileServer(files)},
+		caching:     fixedBuildCaching(),
+	}, nil
 }
 
 func NewLive(files fs.FS) *Server {
-	return &Server{files: files, manifests: liveManifest{files: files}, caching: liveBuildCaching()}
+	return &Server{
+		manifests:   liveManifest{files: files},
+		fileServers: liveFileServer{files: files},
+		caching:     liveBuildCaching(),
+	}
 }
 
 func (s *Server) ScriptURL(source string) (string, error) {
@@ -68,7 +80,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", s.caching.cacheControl(file))
-	http.ServeFileFS(w, r, s.files, file.file)
+	s.fileServers.load().ServeHTTP(w, requestFor(r, file.file))
 }
 
 func (s *Server) entry(source string) (chunk, error) {
@@ -78,6 +90,14 @@ func (s *Server) entry(source string) (chunk, error) {
 	}
 
 	return loaded.entry(source)
+}
+
+func requestFor(r *http.Request, file string) *http.Request {
+	resolved := r.Clone(r.Context())
+	resolved.URL.Path = url(file)
+	resolved.URL.RawPath = ""
+
+	return resolved
 }
 
 func url(file string) string {

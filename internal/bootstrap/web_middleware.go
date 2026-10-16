@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/clock"
+	"github.com/DannyFestor/go-template-html/internal/adapter/compression"
 	"github.com/DannyFestor/go-template-html/internal/adapter/valkey"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/web"
@@ -21,15 +22,22 @@ type webMiddlewareDeps struct {
 	sessions  *valkey.SessionStore
 }
 
-// webMiddleware lists the chain outermost first. Recovery and the access log wrap everything that can fail, so a 500
-// is logged, and the mux error interceptor sits right around the mux, so later middleware can enrich its pages.
+// webMiddleware lists the chain outermost first. Compression wraps everything, so the pages recovery renders are
+// compressed too. Recovery and the access log wrap everything that can fail, so a 500 is logged, and the mux error
+// interceptor sits right around the mux, so later middleware can enrich its pages.
 func webMiddleware(deps webMiddlewareDeps) ([]wrapper, error) {
+	compress, err := compression.New()
+	if err != nil {
+		return nil, fmt.Errorf("compress responses: %w", err)
+	}
+
 	crossOrigin, err := middleware.CrossOriginProtection(deps.config.HTTP.CSRFTrustedOrigins, deps.responder)
 	if err != nil {
 		return nil, fmt.Errorf("protect against cross-origin requests: %w", err)
 	}
 
 	return []wrapper{
+		compress,
 		middleware.RequestID,
 		middleware.AccessLog(deps.logger),
 		middleware.Recover(deps.responder),
