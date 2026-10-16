@@ -25,7 +25,9 @@ vendors:
       - github.com/jackc/pgx/v5
       - github.com/jackc/pgx/v5/**
   go-redis:
-    in: github.com/redis/go-redis/v9/**
+    in:
+      - github.com/redis/go-redis/v9
+      - github.com/redis/go-redis/v9/**
   goose:
     in:
       - github.com/pressly/goose/v3
@@ -138,8 +140,6 @@ deps:
       - buildinfo
     canUse:
       - config
-      # One shared client, built here and handed to the Valkey adapters.
-      - go-redis
   action:
     mayDependOn:
       - domain
@@ -204,7 +204,10 @@ deps:
       - pgx
   adapter-valkey:
     mayDependOn:
+      - adapter-valkey
       - domain
+      # Its integration tests run each under a key prefix of their own.
+      - testsupport
     canUse:
       - go-redis
   adapter-goose:
@@ -243,6 +246,7 @@ deps:
       - migrations
       - adapter-postgres
       - adapter-goose
+      - adapter-valkey
       # Feature and e2e tests build the real app the way cmd/web does (ADR-0011).
       - bootstrap
     canUse:

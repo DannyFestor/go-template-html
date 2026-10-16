@@ -2,6 +2,8 @@ package bootstrap_test
 
 import (
 	"log/slog"
+	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,16 +15,26 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 )
 
-func databaseValues() []string {
-	return []string{"DB_HOST=db.internal", "DB_USER=app", "DB_PASSWORD=hunter2", "DB_NAME=shop"}
+func connectionValues() []string {
+	return []string{
+		"APP_URL=http://localhost:8080",
+		"DB_HOST=db.internal",
+		"DB_USER=app",
+		"DB_PASSWORD=hunter2",
+		"DB_NAME=shop",
+		"VALKEY_HOST=valkey.internal",
+	}
 }
 
 func requiredValues() []string {
-	return append(databaseValues(), "APP_ENV=local")
+	return append(connectionValues(), "APP_ENV=local")
 }
 
 func TestLoadConfigAppliesDefaults(t *testing.T) {
 	t.Parallel()
+
+	appURL, err := url.Parse("http://localhost:8080")
+	require.NoError(t, err)
 
 	config, err := bootstrap.LoadConfig(missingDotenv(t), requiredValues())
 
@@ -31,16 +43,19 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 		App: bootstrap.App{
 			Name:            "Go Template",
 			Env:             bootstrap.EnvironmentLocal,
+			URL:             *appURL,
 			ShutdownTimeout: 15 * time.Second,
 		},
 		HTTP: bootstrap.HTTP{
-			Addr:              ":8080",
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       15 * time.Second,
-			WriteTimeout:      30 * time.Second,
-			IdleTimeout:       120 * time.Second,
-			MaxBodyBytes:      1 << 20,
-			ReadinessCacheTTL: 5 * time.Second,
+			Addr:               ":8080",
+			ReadHeaderTimeout:  5 * time.Second,
+			ReadTimeout:        15 * time.Second,
+			WriteTimeout:       30 * time.Second,
+			IdleTimeout:        120 * time.Second,
+			MaxBodyBytes:       1 << 20,
+			ReadinessCacheTTL:  5 * time.Second,
+			CSRFTrustedOrigins: nil,
+			TrustedProxies:     nil,
 		},
 		DB: bootstrap.DB{
 			Host:                     "db.internal",
@@ -56,18 +71,41 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			ConnectTimeout:           5 * time.Second,
 			Web:                      bootstrap.WebDB{MaxConns: 10, MinConns: 0, StatementTimeout: 10 * time.Second},
 		},
-		Log: bootstrap.Log{Level: slog.LevelInfo},
+		Valkey: bootstrap.Valkey{
+			Host:      "valkey.internal",
+			Port:      6379,
+			Password:  bootstrap.Secret(""),
+			KeyPrefix: "go-template-html:",
+		},
+		Session: bootstrap.Session{IdleLifetime: 2 * time.Hour, AbsoluteLifetime: 24 * time.Hour},
+		Log:     bootstrap.Log{Level: slog.LevelInfo},
 	}, config)
 }
 
-func TestLoadConfigRequiresTheDatabaseConnection(t *testing.T) {
+func TestLoadConfigRequiresTheAppURLAndTheConnections(t *testing.T) {
 	t.Parallel()
 
 	_, err := bootstrap.LoadConfig(missingDotenv(t), []string{"APP_ENV=local"})
 
-	for _, name := range []string{"DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"} {
+	for _, name := range []string{"APP_URL", "DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME", "VALKEY_HOST"} {
 		assert.ErrorContains(t, err, name)
 	}
+}
+
+func TestLoadConfigReadsTheTrustedOriginsAndProxiesAsLists(t *testing.T) {
+	t.Parallel()
+
+	config, err := bootstrap.LoadConfig(missingDotenv(t), append(requiredValues(),
+		"CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com",
+		"TRUSTED_PROXIES=10.0.0.0/8,fd00::/8",
+	))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://example.com", "https://www.example.com"}, config.HTTP.CSRFTrustedOrigins)
+	assert.Equal(t,
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("fd00::/8")},
+		config.HTTP.TrustedProxies,
+	)
 }
 
 func TestLoadConfigReadsDotenv(t *testing.T) {
@@ -75,7 +113,7 @@ func TestLoadConfigReadsDotenv(t *testing.T) {
 
 	dotenv := writeDotenv(t, "APP_ENV=production\nAPP_NAME=Acme Shop\nLOG_LEVEL=debug\n")
 
-	config, err := bootstrap.LoadConfig(dotenv, databaseValues())
+	config, err := bootstrap.LoadConfig(dotenv, connectionValues())
 
 	require.NoError(t, err)
 	assert.Equal(t, bootstrap.EnvironmentProduction, config.App.Env)
@@ -88,7 +126,7 @@ func TestLoadConfigPrefersProcessEnvironmentOverDotenv(t *testing.T) {
 
 	dotenv := writeDotenv(t, "APP_ENV=local\nHTTP_ADDR=:9000\n")
 
-	config, err := bootstrap.LoadConfig(dotenv, append(databaseValues(), "HTTP_ADDR=127.0.0.1:7000"))
+	config, err := bootstrap.LoadConfig(dotenv, append(connectionValues(), "HTTP_ADDR=127.0.0.1:7000"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:7000", config.HTTP.Addr)

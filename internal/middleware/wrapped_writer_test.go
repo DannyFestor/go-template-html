@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,12 @@ func TestWrappingMiddlewareKeepsTheWritersCapabilities(t *testing.T) {
 	wrappers := map[string]func(http.Handler) http.Handler{
 		"access log":            middleware.AccessLog(slog.New(slog.DiscardHandler)),
 		"mux error interceptor": middleware.InterceptMuxErrors(&spyRenderer{rendered: nil}),
+		"session": middleware.LoadAndSaveSession(
+			newMemoryStore(),
+			&manualClock{now: time.Now()},
+			middleware.SessionSettings{Secure: false, AbsoluteLifetime: time.Hour},
+			&spyRenderer{rendered: nil},
+		),
 	}
 
 	for name, wrap := range wrappers {

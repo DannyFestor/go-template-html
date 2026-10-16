@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,8 +10,11 @@ import (
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
 	"github.com/DannyFestor/go-template-html/internal/adapter/postgres"
+	"github.com/DannyFestor/go-template-html/internal/adapter/valkey"
+	"github.com/DannyFestor/go-template-html/internal/asset"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
 	"github.com/DannyFestor/go-template-html/internal/handler/health"
+	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
@@ -19,6 +23,7 @@ type WebApp struct {
 	Responder *web.Responder
 	handler   http.Handler
 	pool      *postgres.Pool
+	valkey    *valkey.Client
 }
 
 func RunWeb() int {
@@ -30,8 +35,11 @@ func serveWeb(ctx context.Context, config Config, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer app.Close()
 
+	return errors.Join(serveWebApp(ctx, config, logger, app), app.Close())
+}
+
+func serveWebApp(ctx context.Context, config Config, logger *slog.Logger, app *WebApp) error {
 	var listenConfig net.ListenConfig
 
 	listener, err := listenConfig.Listen(ctx, "tcp", config.HTTP.Addr)
@@ -55,36 +63,90 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		return nil, err
 	}
 
-	pool, err := postgres.Open(ctx, webPostgresConfig(config.DB))
+	app := &WebApp{Mux: nil, Responder: nil, handler: nil, pool: nil, valkey: nil}
+
+	err = app.connect(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("connect to the database: %w", err)
+		return nil, errors.Join(err, app.Close())
 	}
 
-	responder := web.NewResponder(
-		web.NewShellBuilder(config.App.Name, assets),
-		logreport.New(logger),
-		config.App.Env == EnvironmentLocal,
-	)
-	mux := newWebMux(webRoutes{
-		assets:    assets,
-		responder: responder,
-		readiness: health.NewReadiness(health.NewCachedPing(pool, config.HTTP.ReadinessCacheTTL)),
-	})
+	err = app.route(config, logger, assets)
+	if err != nil {
+		return nil, errors.Join(err, app.Close())
+	}
 
-	return &WebApp{
-		Mux:       mux,
-		Responder: responder,
-		handler:   withMiddleware(mux, webMiddleware(config.HTTP, logger, responder)),
-		pool:      pool,
-	}, nil
+	return app, nil
 }
 
 func (a *WebApp) Handler() http.Handler {
 	return a.handler
 }
 
-func (a *WebApp) Close() {
-	a.pool.Close()
+func (a *WebApp) Close() error {
+	var err error
+
+	if a.valkey != nil {
+		err = a.valkey.Close()
+	}
+
+	if a.pool != nil {
+		a.pool.Close()
+	}
+
+	if err != nil {
+		return fmt.Errorf("close the web app: %w", err)
+	}
+
+	return nil
+}
+
+func (a *WebApp) connect(ctx context.Context, config Config) error {
+	pool, err := postgres.Open(ctx, webPostgresConfig(config.DB))
+	if err != nil {
+		return fmt.Errorf("connect to the database: %w", err)
+	}
+
+	a.pool = pool
+
+	client, err := valkey.Open(valkeyConfig(config.Valkey))
+	if err != nil {
+		return fmt.Errorf("connect to valkey: %w", err)
+	}
+
+	a.valkey = client
+
+	return nil
+}
+
+func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server) error {
+	session := middleware.Session{}
+	a.Responder = web.NewResponder(
+		web.NewShellBuilder(config.App.Name, assets, session),
+		session,
+		logreport.New(logger),
+		config.App.Env == EnvironmentLocal,
+	)
+	a.Mux = newWebMux(webRoutes{
+		assets:    assets,
+		responder: a.Responder,
+		readiness: health.NewReadiness(
+			health.NewCachedPing(health.NewDependencies(a.pool, a.valkey), config.HTTP.ReadinessCacheTTL),
+		),
+	})
+
+	chain, err := webMiddleware(webMiddlewareDeps{
+		config:    config,
+		logger:    logger,
+		responder: a.Responder,
+		sessions:  valkey.NewSessionStore(a.valkey, config.Session.IdleLifetime),
+	})
+	if err != nil {
+		return err
+	}
+
+	a.handler = withMiddleware(a.Mux, chain)
+
+	return nil
 }
 
 func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.Server {

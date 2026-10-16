@@ -14,6 +14,7 @@ import (
 
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
 )
 
 const (
@@ -47,7 +48,7 @@ func openPage(t *testing.T, path string) browserPage {
 func startApp(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	webApp := testapp.New(t, testapp.Config(appName, testdb.New(t)), t.Output())
+	webApp := testapp.New(t, testapp.Config(appName, testdb.New(t), testvalkey.New(t)), t.Output())
 
 	return testapp.Serve(t, webApp.Handler())
 }

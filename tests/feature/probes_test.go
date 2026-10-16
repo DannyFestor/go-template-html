@@ -16,6 +16,9 @@ const (
 	probeFailure  = "/probe/failure"
 	probeRedirect = "/probe/redirect"
 	probeForm     = "/probe/form"
+	probeFlash    = "/probe/flash"
+
+	probeFlashMessage = "Probe flashed."
 )
 
 var errProbeFailed = errors.New("probe failed")
@@ -26,6 +29,15 @@ func mountProbes(webApp *bootstrap.WebApp) {
 	webApp.Mux.Handle("GET "+probeFailure, responder.Handle(failing))
 	webApp.Mux.Handle("POST "+probeRedirect, responder.Handle(redirectingHome(responder)))
 	webApp.Mux.Handle("POST "+probeForm, responder.Handle(parsingTheForm))
+	webApp.Mux.Handle("POST "+probeFlash, responder.Handle(flashingHome(responder)))
+}
+
+func flashingHome(responder *web.Responder) web.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		responder.RedirectWithStatus(w, r, route.Home, probeFlashMessage)
+
+		return nil
+	}
 }
 
 func failing(http.ResponseWriter, *http.Request) error {

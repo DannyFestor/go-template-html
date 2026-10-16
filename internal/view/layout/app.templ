@@ -36,6 +36,7 @@ templ App(shell view.Shell) {
 				</header>
 				@component.BannerSlot()
 				<main id={ AppMainID } class="p-6 lg:p-10">
+					@component.Status(shell.Status)
 					{ children... }
 				</main>
 			</div>

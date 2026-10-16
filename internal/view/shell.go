@@ -5,6 +5,7 @@ type Shell struct {
 	Script      string
 	Stylesheets []string
 	User        ShellUser
+	Status      string
 }
 
 type ShellUser struct {

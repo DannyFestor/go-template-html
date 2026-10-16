@@ -32,13 +32,17 @@ func (s *spyReporter) Report(_ context.Context, err error) {
 }
 
 func newResponder(reporter *spyReporter, showErrorDetails bool) *web.Responder {
+	return newFlashingResponder(reporter, showErrorDetails, &fakeFlashes{message: ""})
+}
+
+func newFlashingResponder(reporter *spyReporter, showErrorDetails bool, flashes *fakeFlashes) *web.Responder {
 	assets := fakeAssets{
 		scripts:     map[string]string{appEntry: "/assets/app.js"},
 		stylesheets: map[string][]string{appEntry: nil},
 		err:         nil,
 	}
 
-	return web.NewResponder(web.NewShellBuilder("Acme Shop", assets), reporter, showErrorDetails)
+	return web.NewResponder(web.NewShellBuilder("Acme Shop", assets, flashes), flashes, reporter, showErrorDetails)
 }
 
 func newRequest(t *testing.T, headers map[string]string) *http.Request {
@@ -164,6 +168,49 @@ func TestRedirectAsksHTMXToNavigateForPartialRequests(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "/dashboard", recorder.Header().Get("Hx-Redirect"))
 	assert.Empty(t, recorder.Header().Get("Location"))
+}
+
+func TestRedirectWithStatusFlashesTheMessageForTheNextPage(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	flashes := &fakeFlashes{message: ""}
+
+	newFlashingResponder(&spyReporter{reported: nil}, false, flashes).
+		RedirectWithStatus(recorder, newRequest(t, nil), "/dashboard", "Profile saved.")
+
+	assert.Equal(t, http.StatusSeeOther, recorder.Code)
+	assert.Equal(t, "/dashboard", recorder.Header().Get("Location"))
+	assert.Equal(t, "Profile saved.", flashes.message)
+}
+
+func TestPageShowsTheFlashAsAStatusInsideMainOnce(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	flashes := &fakeFlashes{message: "Profile saved."}
+
+	err := newFlashingResponder(&spyReporter{reported: nil}, false, flashes).
+		Page(recorder, newRequest(t, nil), http.StatusOK, appPageWithFragment())
+
+	require.NoError(t, err)
+	assert.Contains(t, recorder.Body.String(), `<main id="app-main" class="p-6 lg:p-10"><div role="status"`)
+	assert.Contains(t, recorder.Body.String(), "Profile saved.")
+	assert.Empty(t, flashes.message)
+}
+
+func TestPartialPageLeavesTheFlashForTheNextFullPage(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	flashes := &fakeFlashes{message: "Profile saved."}
+
+	err := newFlashingResponder(&spyReporter{reported: nil}, false, flashes).
+		Page(recorder, newRequest(t, htmxPartial()), http.StatusOK, appPageWithFragment())
+
+	require.NoError(t, err)
+	assert.NotContains(t, recorder.Body.String(), "Profile saved.")
+	assert.Equal(t, "Profile saved.", flashes.message)
 }
 
 func boostedInto(target string) map[string]string {

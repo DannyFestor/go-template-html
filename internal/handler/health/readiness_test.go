@@ -70,6 +70,17 @@ func TestReadinessReportsUnavailableWhileThePingFails(t *testing.T) {
 	assert.Equal(t, "unavailable\n", recorder.Body.String())
 }
 
+func TestDependenciesFailWhileAnyOneIsDown(t *testing.T) {
+	t.Parallel()
+
+	up, down := newFakePinger(0), newFakePinger(0)
+	down.down.Store(true)
+
+	require.NoError(t, health.NewDependencies(up, up).Ping(t.Context()))
+	require.ErrorIs(t, health.NewDependencies(up, down).Ping(t.Context()), errDown)
+	assert.ErrorIs(t, health.NewDependencies(down, up).Ping(t.Context()), errDown)
+}
+
 func TestCachedPingPingsAtMostOncePerTTL(t *testing.T) {
 	t.Parallel()
 
