@@ -3,9 +3,9 @@ package web
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/DannyFestor/go-template-html/internal/view/layout"
 )
@@ -46,13 +46,13 @@ func (r *Responder) Page(w http.ResponseWriter, req *http.Request, status int, p
 	return r.writeFullPage(w, req, status, page.Layout, page.Body)
 }
 
-func (r *Responder) TooManyRequests(
-	w http.ResponseWriter,
-	req *http.Request,
-	retryAfter time.Duration,
-	page Page,
-) error {
-	setRetryAfter(w.Header(), retryAfter)
+func (r *Responder) RateLimited(w http.ResponseWriter, req *http.Request, refusal error, page Page) error {
+	tooMany, ok := errors.AsType[*StatusError](refusal)
+	if !ok || tooMany.Status != http.StatusTooManyRequests {
+		return refusal
+	}
+
+	setRetryAfter(w.Header(), tooMany.RetryAfter)
 
 	return r.Page(w, req, http.StatusTooManyRequests, page)
 }

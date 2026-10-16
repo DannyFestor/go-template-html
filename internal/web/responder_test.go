@@ -133,18 +133,31 @@ func noSwapOverride() []string {
 	return []string{"", "", ""}
 }
 
-func TestTooManyRequestsReRendersThePageWithRetryAfter(t *testing.T) {
+func TestRateLimitedReRendersThePageWithRetryAfterForTooManyRequests(t *testing.T) {
 	t.Parallel()
 
 	recorder := httptest.NewRecorder()
 
 	err := newResponder(&spyReporter{reported: nil}, false).
-		TooManyRequests(recorder, newRequest(t, nil), 30*time.Second, appPageWithFragment())
+		RateLimited(recorder, newRequest(t, nil), web.ErrTooManyRequests(30*time.Second), appPageWithFragment())
 
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
 	assert.Equal(t, "30", recorder.Header().Get("Retry-After"))
 	assert.Contains(t, recorder.Body.String(), "<p>body</p>")
+}
+
+func TestRateLimitedHandsBackAFailureToCountForItsErrorPage(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	unavailable := web.ErrServiceUnavailable(errDatabaseDown)
+
+	err := newResponder(&spyReporter{reported: nil}, false).
+		RateLimited(recorder, newRequest(t, nil), unavailable, appPageWithFragment())
+
+	assert.Same(t, unavailable, err)
+	assert.Empty(t, recorder.Body.String())
 }
 
 func TestRedirectSendsSeeOther(t *testing.T) {
