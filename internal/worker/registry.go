@@ -66,6 +66,10 @@ func (r *Registry) leases() []domain.JobLease {
 	return leases
 }
 
+func (r *Registry) periodicJobs() []periodicJob {
+	return r.periodic
+}
+
 func (r *Registry) lookup(kind string) registration {
 	return r.registrations[kind]
 }

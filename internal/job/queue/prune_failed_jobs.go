@@ -7,10 +7,6 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/action/queue"
 )
 
-type failedJobPruner interface {
-	Run(ctx context.Context, in queue.PruneFailedJobsIn) (queue.PruneFailedJobsOut, error)
-}
-
 type PruneFailedJobs struct{}
 
 func (PruneFailedJobs) Kind() string {

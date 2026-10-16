@@ -182,6 +182,7 @@ deps:
       - route
   job:
     mayDependOn:
+      - job
       - domain
       - action
   # The worker runtime reaches the queue only through its own jobStore interface (ADR-0012).

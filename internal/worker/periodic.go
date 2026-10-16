@@ -20,7 +20,7 @@ func (p periodicJob) nextRun(now time.Time) time.Time {
 func (w *Worker) schedule(ctx context.Context) error {
 	now := w.deps.Clock.Now()
 
-	for _, periodic := range w.deps.Registry.periodic {
+	for _, periodic := range w.deps.Registry.periodicJobs() {
 		err := w.deps.Store.SchedulePeriodic(ctx, periodic.job, periodic.nextRun(now))
 		if err != nil {
 			return fmt.Errorf("schedule the periodic %s job: %w", periodic.job.Kind(), err)
