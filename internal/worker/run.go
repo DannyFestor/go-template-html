@@ -35,6 +35,7 @@ func (w *Worker) poll(ctx, jobCtx context.Context, running *pool) {
 
 func (w *Worker) fill(ctx, jobCtx context.Context, running *pool) {
 	w.report(ctx, w.rescue(ctx))
+	w.report(ctx, w.schedule(ctx))
 
 	for ctx.Err() == nil && running.tryAcquire() {
 		job, found, err := w.claim(jobCtx)

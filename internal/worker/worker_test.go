@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -85,10 +86,17 @@ type memoryStore struct {
 	available []domain.ClaimedJob
 	outcomes  map[domain.JobID]string
 	claimErrs []error
+	scheduled []string
 }
 
 func newMemoryStore(kind string, jobs int) *memoryStore {
-	store := &memoryStore{mutex: sync.Mutex{}, available: nil, outcomes: map[domain.JobID]string{}, claimErrs: nil}
+	store := &memoryStore{
+		mutex:     sync.Mutex{},
+		available: nil,
+		outcomes:  map[domain.JobID]string{},
+		claimErrs: nil,
+		scheduled: nil,
+	}
 	for index := range jobs {
 		store.add(domain.ClaimedJob{ID: domain.JobID(strconv.Itoa(index)), Kind: kind, Args: []byte("{}"), Attempt: 0})
 	}
@@ -138,6 +146,26 @@ func (s *memoryStore) Fail(_ context.Context, job domain.ClaimedJob, _ time.Time
 
 func (s *memoryStore) Release(_ context.Context, job domain.ClaimedJob) error {
 	return s.record(job, "released")
+}
+
+func (s *memoryStore) SchedulePeriodic(
+	_ context.Context,
+	job interface{ Kind() string },
+	scheduledFor time.Time,
+) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.scheduled = append(s.scheduled, job.Kind()+" at "+scheduledFor.Format(time.RFC3339))
+
+	return nil
+}
+
+func (s *memoryStore) scheduledRuns() []string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	return append([]string(nil), s.scheduled...)
 }
 
 func (s *memoryStore) add(job domain.ClaimedJob) {
@@ -278,6 +306,22 @@ func TestRunReportsAFailedClaimAndKeepsPolling(t *testing.T) {
 	require.NoError(t, run.stopped(t))
 	require.Len(t, reporter.errors(), 1)
 	assert.ErrorIs(t, reporter.errors()[0], errClaim)
+}
+
+func TestRunSchedulesAPeriodicJobForTheNextIntervalBoundaryInUTC(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore(blockingJob{}.Kind(), 0)
+	registry := worker.NewRegistry()
+	worker.RegisterPeriodic(registry, newBlockingHandler(false), worker.DefaultSettings(), 24*time.Hour)
+	run := start(t, worker.New(dependencies(store, registry, newSpyReporter()), config(time.Minute)))
+
+	assert.Eventually(t, func() bool {
+		return slices.Contains(store.scheduledRuns(), "blocking at 2026-10-17T00:00:00Z")
+	}, waitFor, pollInterval)
+
+	run.cancel()
+	require.NoError(t, run.stopped(t))
 }
 
 func TestAPanickingJobIsRetried(t *testing.T) {

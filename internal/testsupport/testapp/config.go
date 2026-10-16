@@ -47,8 +47,12 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
-		Queue:           bootstrap.Queue{Concurrency: jobConcurrency, PollInterval: time.Second},
-		Log:             bootstrap.Log{Level: slog.LevelInfo},
+		Queue: bootstrap.Queue{
+			Concurrency:     jobConcurrency,
+			PollInterval:    time.Second,
+			FailedRetention: time.Hour,
+		},
+		Log: bootstrap.Log{Level: slog.LevelInfo},
 	}
 }
 

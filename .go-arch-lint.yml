@@ -159,6 +159,7 @@ deps:
       - config
   action:
     mayDependOn:
+      - action
       - domain
   request:
     mayDependOn:

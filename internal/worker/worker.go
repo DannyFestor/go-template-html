@@ -43,6 +43,11 @@ func (w *Worker) RunDue(ctx context.Context) error {
 		return err
 	}
 
+	err = w.schedule(ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		job, found, err := w.claim(ctx)
 		if err != nil || !found {
