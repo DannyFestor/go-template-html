@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"fmt"
 	"math"
 	"uuid"
 
@@ -20,13 +19,4 @@ func newJobRef(job domain.ClaimedJob) (jobRef, error) {
 	}
 
 	return jobRef{id: id, attempt: int32(min(job.Attempt, math.MaxInt32))}, nil //nolint:gosec // min keeps it in range.
-}
-
-func parseJobID(id domain.JobID) (uuid.UUID, error) {
-	parsed, err := uuid.Parse(string(id))
-	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("parse the job ID %q: %w", id, err)
-	}
-
-	return parsed, nil
 }

@@ -60,25 +60,6 @@ func (h *probeHandler) messages() []string {
 	return messages
 }
 
-type queueClock struct {
-	mutex sync.Mutex
-	now   time.Time
-}
-
-func (c *queueClock) Now() time.Time {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	return c.now
-}
-
-func (c *queueClock) advance(by time.Duration) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.now = c.now.Add(by)
-}
-
 type spyReporter struct {
 	mutex    sync.Mutex
 	reported []error
@@ -102,7 +83,7 @@ type queueFixture struct {
 	database testdb.Database
 	pool     *postgres.Pool
 	queue    *postgres.JobQueue
-	clock    *queueClock
+	clock    *testClock
 	handler  *probeHandler
 	reporter *spyReporter
 	worker   *worker.Worker
@@ -266,7 +247,7 @@ func newQueueFixture(t *testing.T, settings worker.Settings) *queueFixture {
 
 	database := testdb.New(t)
 	pool := open(t, database.PostgresConfig())
-	clock := &queueClock{mutex: sync.Mutex{}, now: time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)}
+	clock := clockAt(time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC))
 	queue := postgres.NewJobQueue(pool, uuidv7.NewGenerator(clock), clock)
 	handler := &probeHandler{mutex: sync.Mutex{}, handled: nil, err: nil}
 	reporter := &spyReporter{mutex: sync.Mutex{}, reported: nil}
