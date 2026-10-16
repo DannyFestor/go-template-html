@@ -7,5 +7,6 @@ type Config struct {
 	Valkey          Valkey
 	Session         Session
 	PasswordHashing PasswordHashing
+	SignedURL       SignedURL
 	Log             Log
 }

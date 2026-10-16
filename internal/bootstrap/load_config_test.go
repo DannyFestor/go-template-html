@@ -1,6 +1,7 @@
 package bootstrap_test
 
 import (
+	"fmt"
 	"log/slog"
 	"net/netip"
 	"net/url"
@@ -12,12 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/appkey"
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 )
+
+const appKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 
 func connectionValues() []string {
 	return []string{
 		"APP_URL=http://localhost:8080",
+		"APP_KEY=" + appKey,
 		"DB_HOST=db.internal",
 		"DB_USER=app",
 		"DB_PASSWORD=hunter2",
@@ -44,6 +49,7 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			Name:            "Go Template",
 			Env:             bootstrap.EnvironmentLocal,
 			URL:             *appURL,
+			Key:             bootstrap.AppKey{Secret: bootstrap.Secret(appKey)},
 			ShutdownTimeout: 15 * time.Second,
 		},
 		HTTP: bootstrap.HTTP{
@@ -79,18 +85,39 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 		},
 		Session:         bootstrap.Session{IdleLifetime: 2 * time.Hour, AbsoluteLifetime: 24 * time.Hour},
 		PasswordHashing: bootstrap.PasswordHashing{MemoryKiB: 19 * 1024, Iterations: 2, Parallelism: 1},
+		SignedURL:       bootstrap.SignedURL{TTL: 2 * time.Hour},
 		Log:             bootstrap.Log{Level: slog.LevelInfo},
 	}, config)
 }
 
-func TestLoadConfigRequiresTheAppURLAndTheConnections(t *testing.T) {
+func TestLoadConfigRequiresTheAppURLTheAppKeyAndTheConnections(t *testing.T) {
 	t.Parallel()
 
 	_, err := bootstrap.LoadConfig(missingDotenv(t), []string{"APP_ENV=local"})
 
-	for _, name := range []string{"APP_URL", "DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME", "VALKEY_HOST"} {
+	for _, name := range []string{"APP_URL", "APP_KEY", "DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME", "VALKEY_HOST"} {
 		assert.ErrorContains(t, err, name)
 	}
+}
+
+func TestLoadConfigRejectsAMalformedAppKeyWithoutEchoingIt(t *testing.T) {
+	t.Parallel()
+
+	_, err := bootstrap.LoadConfig(missingDotenv(t), append(requiredValues(), "APP_KEY=c2hvcnQta2V5", "LOG_LEVEL=loud"))
+
+	require.ErrorContains(t, err, "APP_KEY: "+appkey.ErrMalformedKey.Error())
+	require.ErrorContains(t, err, `"loud"`)
+	assert.NotContains(t, err.Error(), "c2hvcnQta2V5")
+}
+
+func TestLoadConfigKeepsTheAppKeyOutOfFormattedOutput(t *testing.T) {
+	t.Parallel()
+
+	config, err := bootstrap.LoadConfig(missingDotenv(t), requiredValues())
+
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", config), appKey)
+	assert.Equal(t, appKey, config.App.Key.Reveal())
 }
 
 func TestLoadConfigReadsTheTrustedOriginsAndProxiesAsLists(t *testing.T) {

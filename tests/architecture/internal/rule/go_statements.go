@@ -7,28 +7,11 @@ import (
 )
 
 func GoStatements(files []source.File) []Violation {
-	var violations []Violation
-
-	for _, file := range files {
-		for _, funcDecl := range funcDecls(file) {
-			if startsGoroutine(funcDecl) {
-				violations = append(violations, newViolation(file, funcDecl, funcName(funcDecl), "starts a goroutine"))
-			}
-		}
-	}
-
-	return violations
+	return funcsContaining(files, isGoStatement, "starts a goroutine")
 }
 
-func startsGoroutine(decl *ast.FuncDecl) bool {
-	found := false
+func isGoStatement(node ast.Node) bool {
+	_, isGo := node.(*ast.GoStmt)
 
-	ast.Inspect(decl, func(node ast.Node) bool {
-		_, isGo := node.(*ast.GoStmt)
-		found = found || isGo
-
-		return !found
-	})
-
-	return found
+	return isGo
 }
