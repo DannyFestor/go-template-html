@@ -71,16 +71,18 @@ PROTECTED_REF := refs/heads/main
 HTTP_ADDR ?= :8080
 DEV_APP_URL = http://localhost:$(lastword $(subst :, ,$(HTTP_ADDR)))
 
-# The defaults compose.yaml falls back to, so the database targets reach the Compose Postgres without a .env.
+# The defaults compose.yaml falls back to, so the database and test targets reach the Compose services without a .env.
 DB_HOST ?= localhost
 DB_PORT ?= 5432
 DB_USER ?= postgres
 DB_PASSWORD ?= postgres
 DB_NAME ?= go_template_html
 DB_SCHEMA ?= public
-# Tests never read .env, so the harness gets the connection to the Compose Postgres from the environment.
-TEST_DB_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) \
-	DB_SCHEMA=$(DB_SCHEMA)
+VALKEY_HOST ?= localhost
+VALKEY_PORT ?= 6379
+# Tests never read .env, so the harnesses get the connections to the Compose services from the environment.
+TEST_SERVICES_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) \
+	DB_NAME=$(DB_NAME) DB_SCHEMA=$(DB_SCHEMA) VALKEY_HOST=$(VALKEY_HOST) VALKEY_PORT=$(VALKEY_PORT)
 E2E_BROWSER ?= chromium
 PSQL := docker compose exec -T postgres psql -v ON_ERROR_STOP=1 --quiet -U $(DB_USER)
 MIGRATIONS_DIR := migrations
@@ -394,18 +396,18 @@ test-js: bin/vp ## Run the JS unit tests with Vitest
 	$(VP) test
 
 .PHONY: test-integration
-test-integration: ## Run the integration tests in internal/ against the Compose Postgres, each in its own database
-	$(TEST_DB_ENV) $(GO_TEST) -race $(INTEGRATION_TESTS)
+test-integration: ## Run the integration tests in internal/ against the Compose services, each in its own database and key prefix
+	$(TEST_SERVICES_ENV) $(GO_TEST) -race $(INTEGRATION_TESTS)
 
 # The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
 .PHONY: test-feature
-test-feature: ## Run the feature tests in tests/feature against the last `make vite-build` and the Compose Postgres
-	$(TEST_DB_ENV) $(GO_TEST) -race $(FEATURE_TESTS)
+test-feature: ## Run the feature tests in tests/feature against the last `make vite-build` and the Compose services
+	$(TEST_SERVICES_ENV) $(GO_TEST) -race $(FEATURE_TESTS)
 
 # The app under test embeds internal/asset/dist, so `make vite-build` has to run first.
 .PHONY: test-e2e
-test-e2e: ## Run the e2e tests in tests/e2e in E2E_BROWSER against the last `make vite-build` and the Compose Postgres
-	$(TEST_DB_ENV) E2E_BROWSER=$(E2E_BROWSER) $(GO_TEST) -race $(E2E_TESTS)
+test-e2e: ## Run the e2e tests in tests/e2e in E2E_BROWSER against the last `make vite-build` and the Compose services
+	$(TEST_SERVICES_ENV) E2E_BROWSER=$(E2E_BROWSER) $(GO_TEST) -race $(E2E_TESTS)
 
 .PHONY: test-all
 test-all: test test-integration test-feature test-e2e ## Run every test kind against the last `make vite-build` and the Compose services
@@ -431,11 +433,11 @@ coverage-unit:
 
 .PHONY: coverage-integration
 coverage-integration:
-	$(TEST_DB_ENV) $(call go-test-coverage,integration,$(INTEGRATION_TESTS))
+	$(TEST_SERVICES_ENV) $(call go-test-coverage,integration,$(INTEGRATION_TESTS))
 
 .PHONY: coverage-feature
 coverage-feature:
-	$(TEST_DB_ENV) $(call go-test-coverage,feature,$(FEATURE_TESTS))
+	$(TEST_SERVICES_ENV) $(call go-test-coverage,feature,$(FEATURE_TESTS))
 
 .PHONY: coverage-merge
 coverage-merge:

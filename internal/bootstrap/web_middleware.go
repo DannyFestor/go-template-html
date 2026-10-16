@@ -1,25 +1,51 @@
 package bootstrap
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/clock"
+	"github.com/DannyFestor/go-template-html/internal/adapter/valkey"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
 type wrapper func(http.Handler) http.Handler
 
+type webMiddlewareDeps struct {
+	config    Config
+	logger    *slog.Logger
+	responder *web.Responder
+	sessions  *valkey.SessionStore
+}
+
 // webMiddleware lists the chain outermost first. Recovery and the access log wrap everything that can fail, so a 500
 // is logged, and the mux error interceptor sits right around the mux, so later middleware can enrich its pages.
-func webMiddleware(config HTTP, logger *slog.Logger, responder *web.Responder) []wrapper {
+func webMiddleware(deps webMiddlewareDeps) ([]wrapper, error) {
+	crossOrigin, err := middleware.CrossOriginProtection(deps.config.HTTP.CSRFTrustedOrigins, deps.responder)
+	if err != nil {
+		return nil, fmt.Errorf("protect against cross-origin requests: %w", err)
+	}
+
 	return []wrapper{
 		middleware.RequestID,
-		middleware.AccessLog(logger),
-		middleware.Recover(responder),
-		middleware.LimitBody(config.MaxBodyBytes),
-		middleware.InterceptMuxErrors(responder),
+		middleware.AccessLog(deps.logger),
+		middleware.Recover(deps.responder),
+		middleware.SecurityHeaders(deps.config.App.servedOverHTTPS()),
+		middleware.LimitBody(deps.config.HTTP.MaxBodyBytes),
+		crossOrigin,
+		middleware.ClientIP(deps.config.HTTP.TrustedProxies),
+		middleware.LoadAndSaveSession(deps.sessions, clock.System{}, sessionSettings(deps.config), deps.responder),
+		middleware.InterceptMuxErrors(deps.responder),
+	}, nil
+}
+
+func sessionSettings(config Config) middleware.SessionSettings {
+	return middleware.SessionSettings{
+		Secure:           config.App.servedOverHTTPS(),
+		AbsoluteLifetime: config.Session.AbsoluteLifetime,
 	}
 }
 

@@ -9,6 +9,7 @@ templ Public(shell view.Shell) {
 	@document(shell, PublicMainID) {
 		@component.BannerSlot()
 		<main id={ PublicMainID }>
+			@component.Status(shell.Status)
 			{ children... }
 		</main>
 	}

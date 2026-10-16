@@ -119,13 +119,33 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - The `DB_` values build the connection. `DB_HOST`, `DB_USER`, `DB_PASSWORD` and `DB_NAME` have no default. `DB_SCHEMA` (default `public`) becomes every session's `search_path`, so migrations and queries use unqualified names, and goose keeps its `goose_db_version` table there.
 - `statement_timeout` (`WEB_DB_STATEMENT_TIMEOUT`, web only) and `idle_in_transaction_session_timeout` (`DB_IDLE_IN_TRANSACTION_TIMEOUT`) go to Postgres as startup parameters through `RuntimeParams`, never in the DSN. Behind PgBouncer, list both in its `ignore_startup_parameters`. `cmd/migrate` sends neither, so a long migration is never cut off.
 - `postgres.Transactor` carries the transaction in `ctx`, and a `WithinTransaction` nested in another one's callback joins its transaction, so the outermost call alone commits or rolls back. Queries and nested calls reach the transaction only through the `ctx` the callback receives: passed the outer `ctx`, a query runs outside the transaction and a nested call opens one of its own ([ADR-0002](adr/0002-layered-architecture-with-actions.md)).
-- The pool connects lazily, so `cmd/web` starts while Postgres is down. `/readyz` answers 503 until a ping succeeds. Its result is cached for `READINESS_CACHE_TTL` (default `5s`), and concurrent requests share one ping, so request rate can't drive more than one ping per TTL. Each ping times out after 2 seconds. `/readyz`, like `/healthz`, is logged at `debug`.
+- The pool connects lazily, so `cmd/web` starts while Postgres is down. `/readyz` answers 503 until a ping to Postgres and Valkey succeeds. Its result is cached for `READINESS_CACHE_TTL` (default `5s`), and concurrent requests share one ping, so request rate can't drive more than one ping per TTL. Each ping times out after 2 seconds. `/readyz`, like `/healthz`, is logged at `debug`.
 - `make migrate` runs `cmd/migrate up`. It first checks the embedded migrations against the embedded `migrations.sum`, creates `DB_SCHEMA` if it is missing, then applies the pending migrations under goose's Postgres session lock, so two releases migrating at once can't apply one twice. `make migrate-status` lists each migration as `applied` with its time, or `pending`. `make dev` migrates after starting the services.
 - `make migrate-create NAME=<snake_case>` writes `migrations/<next number>_<NAME>.sql` with only a `-- +goose Up` line, then refreshes `migrations.sum`. Numbers are five digits and follow the highest one present.
 - `make migrate-fresh` drops `DB_SCHEMA` with all its data through `docker compose exec postgres psql`, recreates it and migrates. It only reaches the Compose Postgres, so it can't run in production.
 - `migrations/migrations.sum` has the shape of Atlas's `atlas.sum`: a total hash, then one hash per `.sql` file. `internal/migrationsum` computes and verifies it, and `//go:generate` in `migrations/embed.go` rewrites it, through `make generate` or `make generate-migrations-sum`. A test in `migrations/` fails when it is stale or a migration has a `-- +goose Down` section. Two branches that each add a migration conflict on its first line.
 - goose stores no checksum, so the sum guards the repo and the binary, not a database an older build already migrated. CI's `make migrations-unchanged` fails when a migration that is already on `origin/main` was modified, renamed or deleted.
 - `migrations/00001_create_public_schema.sql` holds only `CREATE SCHEMA IF NOT EXISTS public`. It exists because `//go:embed *.sql` doesn't compile without a match, and goose refuses an empty set. The first real migration follows it.
+
+## Valkey, sessions and request security
+
+| | |
+| --- | --- |
+| Version | go-redis `github.com/redis/go-redis/v9` in the main `go.mod` ([upgrading.md](upgrading.md#go-redis)) |
+| Role | `internal/adapter/valkey` opens the one go-redis client and holds the session store. The session middleware, its facade and the other request-security middleware live in `internal/middleware` ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)). |
+
+- The `VALKEY_` values build the client. `VALKEY_HOST` has no default, `VALKEY_PORT` defaults to `6379` and `VALKEY_PASSWORD` to none. `VALKEY_KEY_PREFIX` (default `go-template-html:`) goes in front of every key, followed by its area, such as `session:`, so several apps can share one Valkey. The client connects lazily, so `cmd/web` starts while Valkey is down.
+- Only `internal/adapter/valkey` imports go-redis. go-arch-lint lists its root package next to `github.com/redis/go-redis/v9/**`, because the glob does not match the module root.
+- A session's token comes from `crypto/rand.Text` and travels in the cookie. Valkey stores the session under the token's SHA-256, so a key read out of Valkey can't be replayed as a cookie. The value is the JSON of one typed struct, whose fields all live in `internal/middleware/session_data.go`.
+- A session is written only when a request changed it. Loading it with `GETEX` restarts its idle lifetime (`SESSION_IDLE_LIFETIME`, default `2h`), so a session in use needs no write to stay alive. Its absolute deadline (`SESSION_ABSOLUTE_LIFETIME`, default `24h`) is stored in the struct and set whenever a new token is minted. Concurrent requests are last-write-wins.
+- Handlers reach the session through `middleware.Session`, behind interfaces they declare themselves. `SignIn` stores the user ID and credential fingerprint under a new token, `SignOut` deletes the session and clears the cookie, `CurrentUserID` and `CredentialFingerprint` read them, and `SetFlash` and `TakeFlash` carry the flash. A request that never writes the session gets no cookie and costs no Valkey write.
+- The cookie is `session`, `HttpOnly`, `SameSite=Lax`, `Path=/`, with no `Domain` and no `Max-Age`, so it ends with the browser session. When `APP_URL` is https it is `__Host-session` and `Secure`.
+- A cookie whose session is gone or past its absolute deadline makes the request delete what is left of the session and clear the cookie.
+- The session is saved on the response's first byte, flush, header or hijack, because the cookie can't be set later. If loading or saving fails, the request gets the reported 500 page in place of its response. The writer wrapper keeps `Flush`, `Hijack` and `Unwrap`.
+- `Responder.RedirectWithStatus` sets the flash and redirects. The next full page takes it into `Shell.Status`, and each layout renders it with `component.Status` as the first child of its `<main>`, so boosted navigation shows it too. Partial responses leave it for the next full page.
+- `http.CrossOriginProtection` rejects cross-origin requests with an unsafe method, such as `POST`, `PUT`, `PATCH` or `DELETE`, by `Sec-Fetch-Site` or by comparing `Origin` with `Host`, with the 403 page. `CSRF_TRUSTED_ORIGINS` (comma-separated, default none) lists origins to let through, for proxies that rewrite `Host`. There's no synchronizer token.
+- The client IP is `RemoteAddr`. When the peer is in `TRUSTED_PROXIES` (comma-separated CIDRs, default none), it is the rightmost `X-Forwarded-For` entry outside them. `middleware.ClientIPFrom(ctx)` reads it.
+- Every response carries a strict `Content-Security-Policy` (`script-src 'self'`, `style-src 'self'`, no inline code), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin` and a `Permissions-Policy` that turns off camera, microphone, geolocation, payment and USB. `Strict-Transport-Security: max-age=31536000` is added only when `APP_URL` is https, without `includeSubDomains` or `preload`, so the template commits no other subdomain. htmx 4 adds its indicator CSS as a constructable stylesheet, which `style-src 'self'` doesn't block, so its config stays as it is.
 
 ## sql-formatter
 
@@ -143,14 +163,15 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 
 | | |
 | --- | --- |
-| Version | `internal/testsupport/testdb`, on pgx |
-| Role | Run the adapters against the Compose Postgres, tagged `integration` next to the code (`make test-integration`, over `./internal/...`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, after `make services`. |
+| Version | `internal/testsupport/testdb`, on pgx, and `internal/testsupport/testvalkey` |
+| Role | Run the adapters against the Compose Postgres and Valkey, tagged `integration` next to the code (`make test-integration`, over `./internal/...`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, after `make services`. |
 
 - `testdb.New(t)` gives each test its own database, cloned with `CREATE DATABASE <DB_NAME>_t_<random> TEMPLATE <DB_NAME>_tpl_<hash>`, so every test calls `t.Parallel()`. The hash is the first 16 hex digits of the migrations' total hash.
 - The first test process to need a template builds it under an advisory lock in the `postgres` maintenance database. It migrates it under a `_building` name and renames it when done, so a run that dies halfway leaves no template that looks complete. Templates are kept between runs, and building a new one drops the stale ones.
 - A passing test's database is dropped. A failing test's database is kept, and its name is logged. `make test-db-clean` drops the kept clones and every template.
-- Tests never read `.env`. The Make targets pass the `DB_` values from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and the harness names any that are missing.
-- `testdb.Unreachable(t)` points at a closed loopback port, for testing behaviour while Postgres is down.
+- `testvalkey.New(t)` gives each test its own random `VALKEY_KEY_PREFIX` on the Compose Valkey. Its keys are not deleted afterwards. They expire with their idle lifetime.
+- Tests never read `.env`. The Make targets pass the `DB_` values, `VALKEY_HOST` and `VALKEY_PORT` from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and `internal/testsupport/testenv` names every one that is missing.
+- `testdb.Unreachable(t)` and `testvalkey.Unreachable(t)` point at a closed loopback port, for testing behaviour while Postgres or Valkey is down.
 
 ## Feature tests
 
@@ -159,8 +180,8 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | goquery `github.com/PuerkitoBio/goquery` in the main `go.mod`, with testify |
 | Role | Exercise the app through real HTTP requests in `tests/feature/`, tagged `feature` (`make test-feature`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job. |
 
-- Each app the harness starts gets its own database from `testdb.New`, so the Compose Postgres has to be running (`make services`).
-- The harness builds the app in-process through `internal/testsupport/testapp`, which the e2e tests share: `testapp.New` runs `bootstrap.NewWebApp` in production mode on `testapp.Config`, and `testapp.Serve` serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect and a form body. Responses are read in full, and HTML is parsed into goquery documents.
+- Each app the harness starts gets its own database from `testdb.New` and its own key prefix from `testvalkey.New`, so the Compose Postgres and Valkey have to be running (`make services`).
+- The harness builds the app in-process through `internal/testsupport/testapp`, which the e2e tests share: `testapp.New` runs `bootstrap.NewWebApp` in production mode on `testapp.Config`, and `testapp.Serve` serves its `Handler()` from an `httptest.Server`. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect, a form body and a flash. The client keeps a cookie jar and doesn't follow redirects. Responses are read in full, and HTML is parsed into goquery documents.
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
 - goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` and in `web`, whose tests parse the rendered pages.
@@ -178,7 +199,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `TestMain` launches one browser for the package. Each test gets its own app and database through `internal/testsupport/testapp`, as in the feature tests, and its own browser context.
 - `openPage` records the console errors and uncaught exceptions of the page, which catch a script or stylesheet the CSP blocks or the server fails to serve.
 - Assertions use Playwright's auto-waiting `expect`, so the tests never sleep.
-- Like the feature tests, the app embeds `internal/asset/dist`, so run `make vite-build` first, and the Compose Postgres has to be running.
+- Like the feature tests, the app embeds `internal/asset/dist`, so run `make vite-build` first, and the Compose Postgres and Valkey have to be running.
 - playwright-go is test-only: depguard keeps it out of non-test files, and go-arch-lint allows it only in `e2e-test`.
 - `make test-all` runs `test`, `test-integration`, `test-feature` and `test-e2e`.
 

@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
 )
 
 func TestReadyzReportsOKWhileTheDatabaseIsUp(t *testing.T) {
@@ -26,7 +28,18 @@ func TestReadyzReportsOKWhileTheDatabaseIsUp(t *testing.T) {
 func TestReadyzReportsUnavailableWhileTheDatabaseIsDown(t *testing.T) {
 	t.Parallel()
 
-	app := startAppOn(t, testdb.Unreachable(t))
+	app := startAppOn(t, testapp.Config(appName, testdb.Unreachable(t), testvalkey.New(t)))
+
+	got := app.get(t, route.Readyz)
+
+	assert.Equal(t, http.StatusServiceUnavailable, got.status)
+	assert.Equal(t, "unavailable\n", string(got.body))
+}
+
+func TestReadyzReportsUnavailableWhileValkeyIsDown(t *testing.T) {
+	t.Parallel()
+
+	app := startAppOn(t, testapp.Config(appName, testdb.New(t), testvalkey.Unreachable(t)))
 
 	got := app.get(t, route.Readyz)
 

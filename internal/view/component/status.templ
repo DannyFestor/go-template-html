@@ -1,0 +1,9 @@
+package component
+
+templ Status(message string) {
+	if message != "" {
+		<div role="status" class="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+			{ message }
+		</div>
+	}
+}

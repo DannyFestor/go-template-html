@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DannyFestor/go-template-html/internal/view"
@@ -13,16 +14,21 @@ type assetURLs interface {
 	StylesheetURLs(source string) ([]string, error)
 }
 
+type flashTaker interface {
+	TakeFlash(ctx context.Context) string
+}
+
 type ShellBuilder struct {
 	appName string
 	assets  assetURLs
+	flashes flashTaker
 }
 
-func NewShellBuilder(appName string, assets assetURLs) *ShellBuilder {
-	return &ShellBuilder{appName: appName, assets: assets}
+func NewShellBuilder(appName string, assets assetURLs, flashes flashTaker) *ShellBuilder {
+	return &ShellBuilder{appName: appName, assets: assets, flashes: flashes}
 }
 
-func (b *ShellBuilder) Build() (view.Shell, error) {
+func (b *ShellBuilder) Build(ctx context.Context) (view.Shell, error) {
 	script, err := b.assets.ScriptURL(appEntry)
 	if err != nil {
 		return view.Shell{}, fmt.Errorf("resolve the app script: %w", err)
@@ -38,5 +44,6 @@ func (b *ShellBuilder) Build() (view.Shell, error) {
 		Script:      script,
 		Stylesheets: stylesheets,
 		User:        view.ShellUser{Name: "", Email: "", Initials: ""},
+		Status:      b.flashes.TakeFlash(ctx),
 	}, nil
 }

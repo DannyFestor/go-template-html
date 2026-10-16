@@ -1,13 +1,10 @@
 package testdb
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"strconv"
-)
 
-var errUnset = errors.New("unset: run the tests through make, which passes the Compose Postgres settings")
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testenv"
+)
 
 type settings struct {
 	host     string
@@ -19,24 +16,14 @@ type settings struct {
 }
 
 func settingsFromEnv() (settings, error) {
-	values := map[string]string{}
-
-	var missing []error
-
-	for _, key := range []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SCHEMA"} {
-		values[key] = os.Getenv(key)
-		if values[key] == "" {
-			missing = append(missing, fmt.Errorf("%s %w", key, errUnset))
-		}
-	}
-
-	if len(missing) > 0 {
-		return settings{}, errors.Join(missing...)
-	}
-
-	port, err := strconv.Atoi(values["DB_PORT"])
+	values, err := testenv.Required("DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SCHEMA")
 	if err != nil {
-		return settings{}, fmt.Errorf("DB_PORT: %w", err)
+		return settings{}, fmt.Errorf("read the Postgres settings: %w", err)
+	}
+
+	port, err := values.Port("DB_PORT")
+	if err != nil {
+		return settings{}, fmt.Errorf("read the Postgres settings: %w", err)
 	}
 
 	return settings{

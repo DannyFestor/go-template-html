@@ -14,14 +14,24 @@ type errorReporter interface {
 	Report(ctx context.Context, err error)
 }
 
+type flashSetter interface {
+	SetFlash(ctx context.Context, message string)
+}
+
 type Responder struct {
 	shells           *ShellBuilder
+	flashes          flashSetter
 	reporter         errorReporter
 	showErrorDetails bool
 }
 
-func NewResponder(shells *ShellBuilder, reporter errorReporter, showErrorDetails bool) *Responder {
-	return &Responder{shells: shells, reporter: reporter, showErrorDetails: showErrorDetails}
+func NewResponder(
+	shells *ShellBuilder,
+	flashes flashSetter,
+	reporter errorReporter,
+	showErrorDetails bool,
+) *Responder {
+	return &Responder{shells: shells, flashes: flashes, reporter: reporter, showErrorDetails: showErrorDetails}
 }
 
 func (r *Responder) Page(w http.ResponseWriter, req *http.Request, status int, page Page) error {
@@ -60,6 +70,11 @@ func (r *Responder) Redirect(w http.ResponseWriter, req *http.Request, url strin
 	http.Redirect(w, req, url, http.StatusSeeOther)
 }
 
+func (r *Responder) RedirectWithStatus(w http.ResponseWriter, req *http.Request, url, message string) {
+	r.flashes.SetFlash(req.Context(), message)
+	r.Redirect(w, req, url)
+}
+
 func (r *Responder) writeFullPage(
 	w http.ResponseWriter,
 	req *http.Request,
@@ -67,7 +82,7 @@ func (r *Responder) writeFullPage(
 	kind layout.Kind,
 	body component,
 ) error {
-	shell, err := r.shells.Build()
+	shell, err := r.shells.Build(req.Context())
 	if err != nil {
 		return fmt.Errorf("build the shell: %w", err)
 	}

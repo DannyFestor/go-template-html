@@ -7,15 +7,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
+	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
 )
 
 const appName = "Feature Test App"
@@ -66,21 +70,40 @@ func (b *lockedBuffer) String() string {
 func startApp(t *testing.T) *app {
 	t.Helper()
 
-	return startAppOn(t, testdb.New(t))
+	return startAppOn(t, liveConfig(t))
 }
 
-func startAppOn(t *testing.T, database testdb.Database) *app {
+func liveConfig(t *testing.T) bootstrap.Config {
+	t.Helper()
+
+	return testapp.Config(appName, testdb.New(t), testvalkey.New(t))
+}
+
+func startAppOn(t *testing.T, config bootstrap.Config) *app {
 	t.Helper()
 
 	logs := &lockedBuffer{mutex: sync.Mutex{}, buffer: bytes.Buffer{}}
 
-	webApp := testapp.New(t, testapp.Config(appName, database), logs)
+	webApp := testapp.New(t, config, logs)
 	mountProbes(webApp)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
 
 	server := testapp.Serve(t, webApp.Handler())
 	server.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	server.Client().Jar = jar
 
 	return &app{server: server, logs: logs}
+}
+
+func (a *app) cookies(t *testing.T) []*http.Cookie {
+	t.Helper()
+
+	address, err := url.Parse(a.server.URL)
+	require.NoError(t, err)
+
+	return a.server.Client().Jar.Cookies(address)
 }
 
 func (a *app) get(t *testing.T, path string) response {
