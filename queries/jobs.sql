@@ -4,6 +4,20 @@ INSERT INTO
 VALUES
   (@id, @kind, @args, @run_at, @run_at);
 
+-- name: InsertPeriodicJob :exec
+INSERT INTO
+  jobs (id, kind, args, run_at, scheduled_for, created_at)
+VALUES
+  (
+    @id,
+    @kind,
+    @args,
+    sqlc.arg(scheduled_for)::timestamptz,
+    sqlc.arg(scheduled_for)::timestamptz,
+    @created_at
+  )
+ON CONFLICT (kind, scheduled_for) DO NOTHING;
+
 -- name: ClaimJob :one
 WITH
   leases AS (
@@ -95,3 +109,9 @@ SET
 WHERE
   state = 'running'
   AND locked_until <= sqlc.arg(now)::timestamptz;
+
+-- name: DeleteFailedJobsBefore :exec
+DELETE FROM jobs
+WHERE
+  state = 'failed'
+  AND failed_at < sqlc.arg(failed_before)::timestamptz;

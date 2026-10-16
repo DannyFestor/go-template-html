@@ -15,6 +15,10 @@ var (
 	errPanicked     = errors.New("the job panicked")
 )
 
+func (w *Worker) prepareClaims(ctx context.Context) error {
+	return errors.Join(w.rescue(ctx), w.schedule(ctx))
+}
+
 func (w *Worker) rescue(ctx context.Context) error {
 	rescued, err := w.deps.Store.RescueExpired(ctx, w.deps.Clock.Now(), errLeaseExpired.Error())
 	if err != nil {
