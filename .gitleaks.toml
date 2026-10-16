@@ -7,3 +7,7 @@ paths = [
   '''_test\.go$''',
   '''(^|/)testdata/''',
 ]
+
+[[allowlists]]
+description = "The migration sum file pairs each file name, such as one naming secrets or tokens, with a hash."
+paths = ['''(^|/)migrations/migrations\.sum$''']

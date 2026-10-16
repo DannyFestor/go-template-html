@@ -16,7 +16,7 @@ type Signer struct {
 }
 
 func NewSigner(base url.URL, key []byte, clock clock, ttl time.Duration) *Signer {
-	return &Signer{base: base, mac: mac{key: key}, clock: clock, ttl: ttl}
+	return &Signer{base: base, mac: newMAC(key), clock: clock, ttl: ttl}
 }
 
 func (s *Signer) Sign(path string, query url.Values) string {
