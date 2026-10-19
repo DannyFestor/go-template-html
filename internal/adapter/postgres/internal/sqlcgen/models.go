@@ -11,16 +11,17 @@ import (
 )
 
 type Job struct {
-	ID          uuid.UUID
-	Kind        string
-	Args        []byte
-	State       string
-	Attempt     int32
-	RunAt       time.Time
-	LockedUntil *time.Time
-	LastError   *string
-	FailedAt    *time.Time
-	CreatedAt   time.Time
+	ID           uuid.UUID
+	Kind         string
+	Args         []byte
+	State        string
+	Attempt      int32
+	RunAt        time.Time
+	LockedUntil  *time.Time
+	LastError    *string
+	FailedAt     *time.Time
+	CreatedAt    time.Time
+	ScheduledFor *time.Time
 }
 
 type RecoveryCode struct {

@@ -96,6 +96,18 @@ func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) error 
 	return err
 }
 
+const deleteFailedJobsBefore = `-- name: DeleteFailedJobsBefore :exec
+DELETE FROM jobs
+WHERE
+  state = 'failed'
+  AND failed_at < $1::timestamptz
+`
+
+func (q *Queries) DeleteFailedJobsBefore(ctx context.Context, failedBefore time.Time) error {
+	_, err := q.db.Exec(ctx, deleteFailedJobsBefore, failedBefore)
+	return err
+}
+
 const failJob = `-- name: FailJob :exec
 UPDATE jobs
 SET
@@ -146,6 +158,40 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 		arg.Kind,
 		arg.Args,
 		arg.RunAt,
+	)
+	return err
+}
+
+const insertPeriodicJob = `-- name: InsertPeriodicJob :exec
+INSERT INTO
+  jobs (id, kind, args, run_at, scheduled_for, created_at)
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4::timestamptz,
+    $4::timestamptz,
+    $5
+  )
+ON CONFLICT (kind, scheduled_for) DO NOTHING
+`
+
+type InsertPeriodicJobParams struct {
+	ID           uuid.UUID
+	Kind         string
+	Args         []byte
+	ScheduledFor time.Time
+	CreatedAt    time.Time
+}
+
+func (q *Queries) InsertPeriodicJob(ctx context.Context, arg InsertPeriodicJobParams) error {
+	_, err := q.db.Exec(ctx, insertPeriodicJob,
+		arg.ID,
+		arg.Kind,
+		arg.Args,
+		arg.ScheduledFor,
+		arg.CreatedAt,
 	)
 	return err
 }

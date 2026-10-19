@@ -38,7 +38,7 @@ func New(deps Dependencies, config Config) *Worker {
 }
 
 func (w *Worker) RunDue(ctx context.Context) error {
-	err := w.rescue(ctx)
+	err := w.prepareClaims(ctx)
 	if err != nil {
 		return err
 	}

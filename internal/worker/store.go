@@ -19,7 +19,12 @@ type jobOutcomes interface {
 	Release(ctx context.Context, job domain.ClaimedJob) error
 }
 
+type periodicJobScheduler interface {
+	SchedulePeriodic(ctx context.Context, job interface{ Kind() string }, scheduledFor time.Time) error
+}
+
 type jobStore interface {
 	jobSource
 	jobOutcomes
+	periodicJobScheduler
 }
