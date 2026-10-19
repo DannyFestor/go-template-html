@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DannyFestor/go-template-html/internal/handler/health"
+	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 )
 
 func TestLivenessReportsOK(t *testing.T) {
@@ -15,7 +15,7 @@ func TestLivenessReportsOK(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	health.Liveness(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
+	healthhandler.Liveness(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))

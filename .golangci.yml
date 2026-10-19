@@ -79,6 +79,7 @@ linters:
         - module: go.uber.org/mock
         - module: golang.org/x/crypto
         - module: github.com/mxschmitt/playwright-go
+        - module: github.com/brianvoe/gofakeit/v7
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:
@@ -87,6 +88,9 @@ linters:
         # A job package shares its area's name with the action package that bootstrap wires into it.
         - pkg: github.com/DannyFestor/go-template-html/internal/job/(\w+)
           alias: ${1}job
+        # A handler package shares its area's name with the action package that bootstrap wires into it.
+        - pkg: github.com/DannyFestor/go-template-html/internal/handler/(\w+)
+          alias: ${1}handler
     interfacebloat:
       max: 5
     nestif:

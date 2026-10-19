@@ -1,0 +1,16 @@
+package component
+
+type ButtonProps struct {
+	Label     string
+	Type      string
+	FullWidth bool
+}
+
+templ Button(b ButtonProps) {
+	<button
+		type={ b.Type }
+		class={ "rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200", templ.KV("w-full", b.FullWidth) }
+	>
+		{ b.Label }
+	</button>
+}

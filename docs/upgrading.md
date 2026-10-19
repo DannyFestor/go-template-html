@@ -154,6 +154,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get golang.org/x/crypto@<version>`.
 - **Afterwards**: read the `argon2` package's history for changed encodings or a new Argon2 version, then run `make test-go`. Hashes already stored must still verify: `TestAHashFromTheReferenceImplementationVerifiesUnderItsOwnParameters` checks one made by the reference implementation.
 
+## gofakeit
+
+- **Pinned in**: `github.com/brianvoe/gofakeit/v7` in `go.mod` and `go.sum`. Only `internal/factory` imports it.
+- **Bump**: `go get github.com/brianvoe/gofakeit/v7@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
+- **Afterwards**: read the changelog for changed generators or seeding, which change the data `make seed` writes, then run `make test-go services vite-build test-feature`.
+
 ## Response compression
 
 - **Pinned in**: `github.com/klauspost/compress` and `github.com/vearutop/statigz` in `go.mod` and `go.sum`, and `vite-plugin-compression2` in the `devDependencies` of `package.json` and `pnpm-lock.yaml`. Only `internal/adapter/compression` imports gzhttp, and only `internal/asset` imports statigz.

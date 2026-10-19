@@ -64,7 +64,7 @@ func TestDeleteAllRemovesEveryRecoveryCodeOfTheUserOnly(t *testing.T) {
 	t.Parallel()
 
 	fixture := newRecoveryCodeFixture(t)
-	other := newUserID()
+	other := createUser(t, fixture.pool)
 	otherCodes := recoverycode.NewSet()
 	require.NoError(t, fixture.store.Add(t.Context(), other, otherCodes))
 
@@ -110,13 +110,9 @@ func newRecoveryCodeFixture(t *testing.T) *recoveryCodeFixture {
 
 	pool := openTestDatabase(t)
 	fixture := &recoveryCodeFixture{
-		pool: pool,
-		store: postgres.NewRecoveryCodeStore(
-			pool,
-			newEncrypter(t, encryptionKeyFill),
-			hmacdigest.NewDigester(key(digestKeyFill)),
-		),
-		user:  newUserID(),
+		pool:  pool,
+		store: newRecoveryCodeStore(t, pool),
+		user:  createUser(t, pool),
 		codes: recoverycode.NewSet(),
 	}
 

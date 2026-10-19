@@ -254,6 +254,10 @@ migrate-fresh: drop-schema migrate ## Drop DB_SCHEMA with all its data in the Co
 drop-schema:
 	$(PSQL) -d $(DB_NAME) -c 'DROP SCHEMA IF EXISTS "$(DB_SCHEMA)" CASCADE; CREATE SCHEMA "$(DB_SCHEMA)";'
 
+.PHONY: seed
+seed: ## Add the test user test@example.com with the password "password" and dummy users to DB_SCHEMA
+	go run ./cmd/seed
+
 ##@ Code
 
 .PHONY: generate

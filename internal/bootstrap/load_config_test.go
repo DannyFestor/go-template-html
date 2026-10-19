@@ -88,8 +88,30 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 		Session:         bootstrap.Session{IdleLifetime: 2 * time.Hour, AbsoluteLifetime: 24 * time.Hour},
 		PasswordHashing: bootstrap.PasswordHashing{MemoryKiB: 19 * 1024, Iterations: 2, Parallelism: 1},
 		SignedURL:       bootstrap.SignedURL{TTL: 2 * time.Hour},
-		Log:             bootstrap.Log{Level: slog.LevelInfo},
+		RateLimits: bootstrap.RateLimits{
+			Registration: bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
+		},
+		Log: bootstrap.Log{Level: slog.LevelInfo},
 	}, config)
+}
+
+func TestLoadConfigReadsARateLimitAsAttemptsPerWindow(t *testing.T) {
+	t.Parallel()
+
+	config, err := bootstrap.LoadConfig(missingDotenv(t), append(requiredValues(), "RATE_LIMIT_REGISTRATION=3/90s"))
+
+	require.NoError(t, err)
+	assert.Equal(t, bootstrap.RateLimit{MaxAttempts: 3, Window: 90 * time.Second}, config.RateLimits.Registration)
+}
+
+func TestLoadConfigRejectsAMalformedRateLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, limit := range []string{"5", "five/1m", "5/soon", "0/1m", "5/0s", "-1/1m", "5/-1m"} {
+		_, err := bootstrap.LoadConfig(missingDotenv(t), append(requiredValues(), "RATE_LIMIT_REGISTRATION="+limit))
+
+		assert.ErrorContains(t, err, `"`+limit+`"`, limit)
+	}
 }
 
 func TestLoadConfigRequiresTheAppURLTheAppKeyAndTheConnections(t *testing.T) {

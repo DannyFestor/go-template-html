@@ -81,7 +81,7 @@ func TestUsingAStepOfOneUserLeavesItFreeForAnother(t *testing.T) {
 	t.Parallel()
 
 	fixture := newTwoFactorFixture(t)
-	other := newUserID()
+	other := createUser(t, fixture.pool)
 	require.NoError(t, fixture.store.Save(t.Context(), other, totp.NewSecret()))
 
 	require.True(t, useStep(t, fixture.store, fixture.user, anyStep))
@@ -160,7 +160,7 @@ func newTwoFactorFixture(t *testing.T) *twoFactorFixture {
 	fixture := &twoFactorFixture{
 		pool:          pool,
 		store:         postgres.NewTwoFactorSecretStore(pool, newEncrypter(t, encryptionKeyFill)),
-		user:          newUserID(),
+		user:          createUser(t, pool),
 		secret:        totp.NewSecret(),
 		clock:         clock,
 		authenticator: totp.NewAuthenticator(clock),

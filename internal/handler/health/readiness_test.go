@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DannyFestor/go-template-html/internal/handler/health"
+	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 )
 
 const ttl = 5 * time.Second
@@ -76,9 +76,9 @@ func TestDependenciesFailWhileAnyOneIsDown(t *testing.T) {
 	up, down := newFakePinger(0), newFakePinger(0)
 	down.down.Store(true)
 
-	require.NoError(t, health.NewDependencies(up, up).Ping(t.Context()))
-	require.ErrorIs(t, health.NewDependencies(up, down).Ping(t.Context()), errDown)
-	assert.ErrorIs(t, health.NewDependencies(down, up).Ping(t.Context()), errDown)
+	require.NoError(t, healthhandler.NewDependencies(up, up).Ping(t.Context()))
+	require.ErrorIs(t, healthhandler.NewDependencies(up, down).Ping(t.Context()), errDown)
+	assert.ErrorIs(t, healthhandler.NewDependencies(down, up).Ping(t.Context()), errDown)
 }
 
 func TestCachedPingPingsAtMostOncePerTTL(t *testing.T) {
@@ -86,7 +86,7 @@ func TestCachedPingPingsAtMostOncePerTTL(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		pinger := newFakePinger(0)
-		cached := health.NewCachedPing(pinger, ttl)
+		cached := healthhandler.NewCachedPing(pinger, ttl)
 
 		require.NoError(t, cached.Ping(t.Context()))
 		time.Sleep(ttl - time.Nanosecond)
@@ -102,7 +102,7 @@ func TestCachedPingReportsRecoveryOnceTheTTLRunsOut(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		pinger := newFakePinger(0)
 		pinger.down.Store(true)
-		cached := health.NewCachedPing(pinger, ttl)
+		cached := healthhandler.NewCachedPing(pinger, ttl)
 
 		require.ErrorIs(t, cached.Ping(t.Context()), errDown)
 
@@ -118,7 +118,7 @@ func TestCachedPingSharesOnePingBetweenConcurrentCallers(t *testing.T) {
 	t.Parallel()
 
 	pinger := newFakePinger(10 * time.Millisecond)
-	cached := health.NewCachedPing(pinger, time.Minute)
+	cached := healthhandler.NewCachedPing(pinger, time.Minute)
 
 	var callers sync.WaitGroup
 	for range 10 {
@@ -134,7 +134,7 @@ func TestCachedPingFailsAPingThatHangs(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		cached := health.NewCachedPing(newFakePinger(time.Hour), ttl)
+		cached := healthhandler.NewCachedPing(newFakePinger(time.Hour), ttl)
 
 		assert.ErrorIs(t, cached.Ping(t.Context()), context.DeadlineExceeded)
 	})
@@ -144,7 +144,7 @@ func TestCachedPingOutlivesTheRequestThatStartedIt(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		cached := health.NewCachedPing(newFakePinger(0), ttl)
+		cached := healthhandler.NewCachedPing(newFakePinger(0), ttl)
 
 		canceled, cancel := context.WithCancel(t.Context())
 		cancel()
@@ -158,7 +158,7 @@ func serveReadiness(t *testing.T, pinger *fakePinger) *httptest.ResponseRecorder
 
 	recorder := httptest.NewRecorder()
 
-	health.NewReadiness(pinger).ServeHTTP(
+	healthhandler.NewReadiness(pinger).ServeHTTP(
 		recorder,
 		httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil),
 	)

@@ -17,6 +17,14 @@ func TestFieldReadsTheTrimmedValue(t *testing.T) {
 	assert.Equal(t, "ada@example.com", request.Field(form, "email"))
 }
 
+func TestSecretFieldKeepsTheSpacesThatArePartOfTheSecret(t *testing.T) {
+	t.Parallel()
+
+	form := url.Values{"password": {" secret password "}}
+
+	assert.Equal(t, " secret password ", request.SecretField(form, "password"))
+}
+
 func TestFieldIsEmptyWhenTheFieldIsMissing(t *testing.T) {
 	t.Parallel()
 
