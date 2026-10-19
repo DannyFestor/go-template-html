@@ -19,7 +19,7 @@ type Verifier struct {
 }
 
 func NewVerifier(key []byte, clock clock) *Verifier {
-	return &Verifier{mac: mac{key: key}, clock: clock}
+	return &Verifier{mac: newMAC(key), clock: clock}
 }
 
 func (v *Verifier) Verify(target *url.URL) error {

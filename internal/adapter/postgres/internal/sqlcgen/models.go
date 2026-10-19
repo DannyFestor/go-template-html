@@ -23,3 +23,15 @@ type Job struct {
 	CreatedAt    time.Time
 	ScheduledFor *time.Time
 }
+
+type RecoveryCode struct {
+	UserID        uuid.UUID
+	Digest        []byte
+	EncryptedCode []byte
+}
+
+type TwoFactorSecret struct {
+	UserID          uuid.UUID
+	EncryptedSecret []byte
+	LastUsedStep    int64
+}

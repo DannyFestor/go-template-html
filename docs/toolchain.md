@@ -207,6 +207,21 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `signedurl.Signer` builds URLs on `APP_URL`. `Sign(path, query)` never expires, `SignTemporary(path, query)` expires after `SIGNED_URL_TTL` (default `2h`) and `SignTemporaryFor(path, query, ttl)` after `ttl`. A temporary URL carries its Unix expiry in `expires`. The `signature` parameter is the hex HMAC-SHA256 of the URL's path, including any path in `APP_URL`, then `?` and the query without `signature`, encoded with its keys sorted, so the host and the order of the parameters don't matter.
 - `signedurl.Verifier.Verify(url)` returns `signedurl.ErrInvalidSignature` for a missing or wrong signature, and `signedurl.ErrExpired` once the clock reaches `expires`. It compares with `hmac.Equal`.
 
+## TOTP and recovery codes
+
+| | |
+| --- | --- |
+| Version | stdlib `crypto/hmac`, `crypto/sha1`, `crypto/sha256` and `crypto/rand` |
+| Role | `internal/adapter/totp` generates and checks two-factor authentication codes, `internal/adapter/recoverycode` generates recovery codes and `internal/adapter/hmacdigest` digests them. `postgres.TwoFactorSecretStore` and `postgres.RecoveryCodeStore` keep both encrypted ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)). |
+
+- A code is RFC 6238 TOTP: HMAC-SHA1, 6 digits, 30-second steps, tested against the RFC's SHA1 vectors. `totp.NewSecret` draws 160 random bits, and `totp.URI` builds the `otpauth://totp/` URI with the secret in unpadded base32.
+- `totp.Authenticator.Match(secret, code)` accepts the code of the clock's step or one step either side, compared in constant time, and returns the step it matched.
+- `TwoFactorSecretStore.UseStep(user, step)` is the replay guard: `UPDATE … SET last_used_step = step WHERE user_id = … AND last_used_step < step` checks and records in one statement, so a code passes at most once and no earlier step passes after a later one. `Save` replaces the secret and forgets the used steps.
+- `recoverycode.NewSet` returns 8 codes shaped `XXXXXXXXXX-XXXXXXXXXX`, each 20 characters of `crypto/rand.Text`'s base32 alphabet.
+- `recovery_codes` holds one row per code: the code encrypted, so settings can show it again, and its HMAC-SHA256 digest. `RecoveryCodeStore.Consume` deletes the row matching the digest and reports whether there was one, so a code works once.
+- The stores take the `aesgcm.Encrypter` and `hmacdigest.Digester` as interfaces. Bootstrap builds them on the `totp-secret`, `recovery-code` and `recovery-code-digest` subkeys once a flow uses the stores.
+- Neither table has a foreign key yet, since `users` doesn't exist. The migration that creates `users` adds one to each, with `ON DELETE CASCADE`.
+
 ## Response compression
 
 | | |
@@ -371,7 +386,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Version | v8.30.1, alone in `tools/gitleaks.mod` |
 | Role | Scans the staged changes for secrets (`make lint-secrets`). Configured in `.gitleaks.toml`. |
 
-- `.gitleaks.toml` extends the default rules and allowlists test fixtures by path (`*_test.go`, `testdata/`), so a TOTP seed in a test passes.
+- `.gitleaks.toml` extends the default rules and allowlists test fixtures by path (`*_test.go`, `testdata/`), so a TOTP seed in a test passes. It also allowlists `migrations/migrations.sum`, whose hash next to a migration named after secrets or tokens looks like an API key.
 - Findings are printed with the secret redacted, as rule, file and line.
 - A false positive outside the allowlisted paths takes a `gitleaks:allow` comment on its line.
 
