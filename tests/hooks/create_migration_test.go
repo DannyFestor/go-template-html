@@ -21,7 +21,7 @@ func TestCreateMigrationStartsTheSequenceAtOne(t *testing.T) {
 	run := runScript(t, dir, "", createMigrationScript, dir, "create_users")
 
 	requirePassed(t, run)
-	requireMigration(t, dir, "00001_create_users.sql")
+	requireContent(t, dir, "00001_create_users.sql", upOnlyStub)
 }
 
 func TestCreateMigrationTakesTheNumberAfterTheHighest(t *testing.T) {
@@ -34,7 +34,7 @@ func TestCreateMigrationTakesTheNumberAfterTheHighest(t *testing.T) {
 	run := runScript(t, dir, "", createMigrationScript, dir, "add_tags")
 
 	requirePassed(t, run)
-	requireMigration(t, dir, "00100_add_tags.sql")
+	requireContent(t, dir, "00100_add_tags.sql", upOnlyStub)
 }
 
 func TestCreateMigrationPrintsThePathItWrote(t *testing.T) {
@@ -57,19 +57,6 @@ func TestCreateMigrationRefusesAMissingOrInvalidName(t *testing.T) {
 
 		requireRefused(t, run, "NAME")
 		requireEmptyDir(t, dir)
-	}
-}
-
-func requireMigration(t *testing.T, dir, name string) {
-	t.Helper()
-
-	content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // The tests choose every path.
-	if err != nil {
-		t.Fatalf("read %s: %v", name, err)
-	}
-
-	if string(content) != upOnlyStub {
-		t.Errorf("%s = %q, want %q", name, content, upOnlyStub)
 	}
 }
 

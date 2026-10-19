@@ -576,3 +576,17 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 - The merge settings are only written when one differs, and each change is printed as `<setting>: <old> -> <new>`.
 - GitHub doesn't enforce rulesets on private repositories of free accounts, which is why pre-push refuses pushes to `main` as well.
 - The tooling tests put `tests/hooks/testdata/fake-gh.sh` on `PATH` as `gh`, which serves the API calls from a temporary directory. It applies the `--jq` filters with `jq`, so `make test` needs `jq` on `PATH`.
+
+## Rename
+
+| | |
+| --- | --- |
+| Version | The system `sed`, BSD or GNU. Nothing is pinned. |
+| Role | `make rename MODULE=<module path> [NAME="<display name>"]` turns a fresh clone of the template into a project of its own, through `scripts/rename.sh`. |
+
+- The template carries four tokens, defined in `scripts/rename.sh`: its module path, its slug (the module path's last segment), the slug's database form and its display name. The sweep replaces them with sed in every tracked text file that holds one, module path first, because the module path contains the slug.
+- The slug becomes the last segment of `MODULE` and must match `^[a-z][a-z0-9-]*$`. The database form is the slug with `-` turned into `_`, so Postgres names never need quoting. `NAME` defaults to the slug's words, each capitalised.
+- It refuses with `already renamed` once `go.mod`'s module is no longer the template's. The target stays in the Makefile, and that guard makes a second run harmless.
+- `scripts/rename.sh` and `tests/hooks/rename_test.go` keep the template's tokens, so both are left out of the sweep and the final check.
+- After the sweep it runs `go mod tidy`, `make generate` and `go build ./...`, then fails if `git grep` still finds a token in a tracked file, and lists each one. No CI job runs it, because a renamed clone would fail that job.
+- It only edits the working tree: it never commits, changes a remote or deletes a file. It ends by printing the next steps: `make setup`, `make github-setup` and committing the result.
