@@ -271,27 +271,34 @@ func newQueueFixture(t *testing.T, settings worker.Settings) *queueFixture {
 	handler := &probeHandler{mutex: sync.Mutex{}, handled: nil, err: nil}
 	reporter := &spyReporter{mutex: sync.Mutex{}, reported: nil}
 
-	registry := worker.NewRegistry()
-	worker.Register(registry, handler, settings)
-
-	return &queueFixture{
+	fixture := &queueFixture{
 		database: database,
 		pool:     pool,
 		queue:    queue,
 		clock:    clock,
 		handler:  handler,
 		reporter: reporter,
-		worker: worker.New(
-			worker.Dependencies{
-				Store:    queue,
-				Registry: registry,
-				Clock:    clock,
-				Reporter: reporter,
-				Logger:   slog.New(slog.DiscardHandler),
-			},
-			worker.Config{Concurrency: 1, PollInterval: time.Second, ShutdownTimeout: time.Second},
-		),
+		worker:   nil,
 	}
+
+	registry := worker.NewRegistry()
+	worker.Register(registry, handler, settings)
+	fixture.worker = fixture.newWorker(registry)
+
+	return fixture
+}
+
+func (f *queueFixture) newWorker(registry *worker.Registry) *worker.Worker {
+	return worker.New(
+		worker.Dependencies{
+			Store:    f.queue,
+			Registry: registry,
+			Clock:    f.clock,
+			Reporter: f.reporter,
+			Logger:   slog.New(slog.DiscardHandler),
+		},
+		worker.Config{Concurrency: 1, PollInterval: time.Second, ShutdownTimeout: time.Second},
+	)
 }
 
 func (f *queueFixture) runDue(t *testing.T) {

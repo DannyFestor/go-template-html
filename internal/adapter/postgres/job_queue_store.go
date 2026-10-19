@@ -61,6 +61,15 @@ func (q *JobQueue) RescueExpired(ctx context.Context, now time.Time, lastError s
 	return rescued, nil
 }
 
+func (q *JobQueue) DeleteFailedBefore(ctx context.Context, failedBefore time.Time) error {
+	err := q.pool.queries(ctx).DeleteFailedJobsBefore(ctx, failedBefore)
+	if err != nil {
+		return fmt.Errorf("delete the jobs that failed before %s: %w", failedBefore, err)
+	}
+
+	return nil
+}
+
 func (q *JobQueue) Complete(ctx context.Context, job domain.ClaimedJob) error {
 	return q.update(ctx, job, func(queries *sqlcgen.Queries, ref jobRef) error {
 		return queries.CompleteJob(ctx, sqlcgen.CompleteJobParams{ID: ref.id, Attempt: ref.attempt})

@@ -54,11 +54,13 @@ func NewWorkerApp(ctx context.Context, config Config, logger *slog.Logger) (*Wor
 		return nil, fmt.Errorf("connect to the database: %w", err)
 	}
 
+	jobQueue := newJobQueue(pool)
 	jobs := worker.NewRegistry()
+	registerQueueJobs(jobs, jobQueue, config.Queue)
 
 	return &WorkerApp{
 		Jobs:   jobs,
-		worker: worker.New(workerDependencies(pool, jobs, logger), workerConfig(config)),
+		worker: worker.New(workerDependencies(jobQueue, jobs, logger), workerConfig(config)),
 		pool:   pool,
 	}, nil
 }
@@ -76,9 +78,9 @@ func (a *WorkerApp) Close() {
 	a.pool.Close()
 }
 
-func workerDependencies(pool *postgres.Pool, jobs *worker.Registry, logger *slog.Logger) worker.Dependencies {
+func workerDependencies(jobQueue *postgres.JobQueue, jobs *worker.Registry, logger *slog.Logger) worker.Dependencies {
 	return worker.Dependencies{
-		Store:    newJobQueue(pool),
+		Store:    jobQueue,
 		Registry: jobs,
 		Clock:    clock.System{},
 		Reporter: logreport.New(logger),

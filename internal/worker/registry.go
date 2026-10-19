@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/DannyFestor/go-template-html/internal/domain"
 )
@@ -23,10 +24,19 @@ type registration struct {
 
 type Registry struct {
 	registrations map[string]registration
+	periodic      []periodicJob
 }
 
 func NewRegistry() *Registry {
-	return &Registry{registrations: map[string]registration{}}
+	return &Registry{registrations: map[string]registration{}, periodic: nil}
+}
+
+func RegisterPeriodic[T job](registry *Registry, handler handler[T], settings Settings, interval time.Duration) {
+	Register(registry, handler, settings)
+
+	var zero T
+
+	registry.periodic = append(registry.periodic, periodicJob{job: zero, interval: interval})
 }
 
 func Register[T job](registry *Registry, handler handler[T], settings Settings) {
@@ -54,6 +64,10 @@ func (r *Registry) leases() []domain.JobLease {
 	}
 
 	return leases
+}
+
+func (r *Registry) periodicJobs() []periodicJob {
+	return r.periodic
 }
 
 func (r *Registry) lookup(kind string) registration {
