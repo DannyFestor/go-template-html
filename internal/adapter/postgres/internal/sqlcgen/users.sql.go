@@ -63,3 +63,47 @@ func (q *Queries) FindUser(ctx context.Context, id uuid.UUID) (User, error) {
 	)
 	return i, err
 }
+
+const findUserByEmail = `-- name: FindUserByEmail :one
+SELECT
+  id,
+  name,
+  email,
+  password,
+  created_at
+FROM
+  users
+WHERE
+  email = $1
+`
+
+func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users
+SET
+  password = $1
+WHERE
+  id = $2
+`
+
+type UpdateUserPasswordParams struct {
+	Password string
+	ID       uuid.UUID
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.Password, arg.ID)
+	return err
+}

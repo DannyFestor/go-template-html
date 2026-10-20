@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/appkey"
 	"github.com/DannyFestor/go-template-html/internal/adapter/argon2id"
@@ -12,8 +13,14 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/adapter/uuidv7"
 )
 
+const rememberTokenReplayWindow = 30 * time.Second
+
 func newUserStore(pool *postgres.Pool) *postgres.UserStore {
 	return postgres.NewUserStore(pool, uuidv7.NewGenerator(clock.System{}), clock.System{})
+}
+
+func newRememberTokenStore(pool *postgres.Pool) *postgres.RememberTokenStore {
+	return postgres.NewRememberTokenStore(pool, rememberTokenReplayWindow)
 }
 
 func newPasswordHasher(config PasswordHashing) (*argon2id.Hasher, error) {

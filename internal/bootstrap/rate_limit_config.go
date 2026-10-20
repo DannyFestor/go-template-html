@@ -12,6 +12,7 @@ var errMalformedRateLimit = errors.New("want a positive number of attempts per p
 
 type RateLimits struct {
 	Registration RateLimit `env:"RATE_LIMIT_REGISTRATION" envDefault:"5/1m"`
+	Login        RateLimit `env:"RATE_LIMIT_LOGIN"        envDefault:"5/1m"`
 }
 
 type RateLimit struct {

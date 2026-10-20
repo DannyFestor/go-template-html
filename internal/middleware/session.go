@@ -28,7 +28,8 @@ func (Session) CredentialFingerprint(ctx context.Context) string {
 }
 
 func (Session) SetFlash(ctx context.Context, message string) {
-	mustSessionState(ctx).setFlash(message)
+	state := mustSessionState(ctx)
+	state.set(&state.data.Flash, message)
 }
 
 // TakeFlash tolerates a missing session, because error pages rendered outside the session middleware read it too.
@@ -38,7 +39,18 @@ func (Session) TakeFlash(ctx context.Context) string {
 		return ""
 	}
 
-	return state.takeFlash()
+	return state.take(&state.data.Flash)
+}
+
+func (Session) SetIntendedURL(ctx context.Context, url string) {
+	state := mustSessionState(ctx)
+	state.set(&state.data.IntendedURL, url)
+}
+
+func (Session) TakeIntendedURL(ctx context.Context) string {
+	state := mustSessionState(ctx)
+
+	return state.take(&state.data.IntendedURL)
 }
 
 func currentSessionData(ctx context.Context) sessionData {

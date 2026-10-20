@@ -5,41 +5,39 @@ import (
 	"time"
 )
 
-const (
-	sessionCookieName = "session"
-	hostOnlyPrefix    = "__Host-"
-)
+const hostOnlyPrefix = "__Host-"
 
-type sessionCookie struct {
-	secure bool
+type hostOnlyCookie struct {
+	baseName string
+	secure   bool
 }
 
-func (c sessionCookie) name() string {
+func (c hostOnlyCookie) name() string {
 	if c.secure {
-		return hostOnlyPrefix + sessionCookieName
+		return hostOnlyPrefix + c.baseName
 	}
 
-	return sessionCookieName
+	return c.baseName
 }
 
-func (c sessionCookie) read(r *http.Request) (sessionToken, bool) {
+func (c hostOnlyCookie) read(r *http.Request) (string, bool) {
 	cookie, err := r.Cookie(c.name())
 	if err != nil || cookie.Value == "" {
 		return "", false
 	}
 
-	return sessionToken(cookie.Value), true
+	return cookie.Value, true
 }
 
-func (c sessionCookie) issue(w http.ResponseWriter, token sessionToken) {
-	http.SetCookie(w, c.cookie(string(token), 0))
+func (c hostOnlyCookie) set(w http.ResponseWriter, value string, maxAge int) {
+	http.SetCookie(w, c.cookie(value, maxAge))
 }
 
-func (c sessionCookie) clear(w http.ResponseWriter) {
+func (c hostOnlyCookie) clear(w http.ResponseWriter) {
 	http.SetCookie(w, c.cookie("", -1))
 }
 
-func (c sessionCookie) cookie(value string, maxAge int) *http.Cookie {
+func (c hostOnlyCookie) cookie(value string, maxAge int) *http.Cookie {
 	//nolint:gosec // Secure follows APP_URL, because browsers drop Secure cookies set over plain http off localhost.
 	return &http.Cookie{
 		Name:        c.name(),

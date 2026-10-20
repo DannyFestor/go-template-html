@@ -30,6 +30,14 @@ type RecoveryCode struct {
 	EncryptedCode []byte
 }
 
+type RememberToken struct {
+	Selector        string
+	ValidatorDigest []byte
+	UserID          uuid.UUID
+	ExpiresAt       time.Time
+	ReplacedAt      *time.Time
+}
+
 type TwoFactorSecret struct {
 	UserID          uuid.UUID
 	EncryptedSecret []byte

@@ -42,6 +42,12 @@ func (h *Hasher) Verify(password, encoded string) (bool, error) {
 	return subtle.ConstantTimeCompare(deriveKey(password, stored.salt, stored.params), stored.key) == 1, nil
 }
 
+func (h *Hasher) NeedsRehash(encoded string) bool {
+	stored, err := parsePHCHash(encoded)
+
+	return err != nil || stored.params != h.params
+}
+
 func deriveKey(password string, salt []byte, params Params) []byte {
 	return argon2.IDKey(
 		[]byte(password),

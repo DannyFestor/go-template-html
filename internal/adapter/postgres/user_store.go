@@ -62,6 +62,34 @@ func (s *UserStore) Find(ctx context.Context, userID domain.UserID) (domain.User
 	}
 
 	row, err := s.pool.queries(ctx).FindUser(ctx, id)
+
+	return foundUser(row, err, string(userID))
+}
+
+func (s *UserStore) FindByEmail(ctx context.Context, email string) (domain.User, bool, error) {
+	row, err := s.pool.queries(ctx).FindUserByEmail(ctx, email)
+
+	return foundUser(row, err, email)
+}
+
+func (s *UserStore) UpdatePasswordHash(ctx context.Context, userID domain.UserID, hash domain.PasswordHash) error {
+	id, err := parseUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	err = s.pool.queries(ctx).UpdateUserPassword(ctx, sqlcgen.UpdateUserPasswordParams{
+		Password: string(hash),
+		ID:       id,
+	})
+	if err != nil {
+		return fmt.Errorf("update the password hash of user %s: %w", userID, err)
+	}
+
+	return nil
+}
+
+func foundUser(row sqlcgen.User, err error, lookup string) (domain.User, bool, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		var unknown domain.User
 
@@ -69,7 +97,7 @@ func (s *UserStore) Find(ctx context.Context, userID domain.UserID) (domain.User
 	}
 
 	if err != nil {
-		return domain.User{}, false, fmt.Errorf("find the user %s: %w", userID, err)
+		return domain.User{}, false, fmt.Errorf("find the user %s: %w", lookup, err)
 	}
 
 	return userFromRow(row), true, nil

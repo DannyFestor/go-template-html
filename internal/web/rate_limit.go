@@ -7,6 +7,7 @@ import (
 
 type rateLimiter interface {
 	Hit(ctx context.Context, key string, maxAttempts int, window time.Duration) (bool, time.Duration, error)
+	Clear(ctx context.Context, key string) error
 }
 
 type Limit struct {
@@ -25,7 +26,7 @@ func NewRateLimit(limiter rateLimiter, limit Limit) *RateLimit {
 }
 
 func (r *RateLimit) Hit(ctx context.Context, key string) error {
-	allowed, retryAfter, err := r.limiter.Hit(ctx, r.limit.Name+":"+key, r.limit.MaxAttempts, r.limit.Window)
+	allowed, retryAfter, err := r.limiter.Hit(ctx, r.namespaced(key), r.limit.MaxAttempts, r.limit.Window)
 	if err != nil {
 		return ErrServiceUnavailable(err)
 	}
@@ -35,4 +36,17 @@ func (r *RateLimit) Hit(ctx context.Context, key string) error {
 	}
 
 	return nil
+}
+
+func (r *RateLimit) Clear(ctx context.Context, key string) error {
+	err := r.limiter.Clear(ctx, r.namespaced(key))
+	if err != nil {
+		return ErrServiceUnavailable(err)
+	}
+
+	return nil
+}
+
+func (r *RateLimit) namespaced(key string) string {
+	return r.limit.Name + ":" + key
 }

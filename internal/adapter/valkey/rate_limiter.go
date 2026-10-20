@@ -32,6 +32,15 @@ func (l *RateLimiter) Hit(
 	return attempts <= int64(maxAttempts), remaining, nil
 }
 
+func (l *RateLimiter) Clear(ctx context.Context, key string) error {
+	err := l.client.redis.Del(ctx, l.client.key(rateLimitArea, key)).Err()
+	if err != nil {
+		return fmt.Errorf("clear the attempts: %w", err)
+	}
+
+	return nil
+}
+
 func (l *RateLimiter) count(ctx context.Context, key string, window time.Duration) (int64, time.Duration, error) {
 	var (
 		attempts  *redis.IntCmd

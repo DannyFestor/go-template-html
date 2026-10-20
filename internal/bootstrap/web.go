@@ -20,14 +20,15 @@ import (
 )
 
 type WebApp struct {
-	Mux       *http.ServeMux
-	Jobs      *postgres.JobQueue
-	Users     *postgres.UserStore
-	Passwords *argon2id.Hasher
-	Responder *web.Responder
-	handler   http.Handler
-	pool      *postgres.Pool
-	valkey    *valkey.Client
+	Mux            *http.ServeMux
+	Jobs           *postgres.JobQueue
+	Users          *postgres.UserStore
+	RememberTokens *postgres.RememberTokenStore
+	Passwords      *argon2id.Hasher
+	Responder      *web.Responder
+	handler        http.Handler
+	pool           *postgres.Pool
+	valkey         *valkey.Client
 }
 
 func RunWeb() int {
@@ -73,14 +74,15 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 	}
 
 	app := &WebApp{
-		Mux:       nil,
-		Jobs:      nil,
-		Users:     nil,
-		Passwords: passwords,
-		Responder: nil,
-		handler:   nil,
-		pool:      nil,
-		valkey:    nil,
+		Mux:            nil,
+		Jobs:           nil,
+		Users:          nil,
+		RememberTokens: nil,
+		Passwords:      passwords,
+		Responder:      nil,
+		handler:        nil,
+		pool:           nil,
+		valkey:         nil,
 	}
 
 	err = app.connect(ctx, config)
@@ -127,6 +129,7 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 	a.pool = pool
 	a.Jobs = newJobQueue(pool)
 	a.Users = newUserStore(pool)
+	a.RememberTokens = newRememberTokenStore(pool)
 
 	client, err := valkey.Open(valkeyConfig(config.Valkey))
 	if err != nil {

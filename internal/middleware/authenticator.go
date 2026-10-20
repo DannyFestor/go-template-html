@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/route"
@@ -39,6 +40,25 @@ func (a *Authenticator) SignIn(ctx context.Context, user domain.User) {
 	a.session.SignIn(ctx, string(user.ID), a.credentials.Of(user.PasswordHash))
 }
 
+func (a *Authenticator) SignOut(ctx context.Context) {
+	a.session.SignOut(ctx)
+}
+
+func (a *Authenticator) SignedIn(ctx context.Context) bool {
+	_, signedIn := a.session.CurrentUserID(ctx)
+
+	return signedIn
+}
+
+func (a *Authenticator) Intended(ctx context.Context) string {
+	intended := a.session.TakeIntendedURL(ctx)
+	if !isLocalPath(intended) {
+		return route.Dashboard
+	}
+
+	return intended
+}
+
 func (a *Authenticator) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, authenticated, err := a.authenticate(r.Context())
@@ -49,7 +69,7 @@ func (a *Authenticator) Require(next http.Handler) http.Handler {
 		}
 
 		if !authenticated {
-			a.responder.Redirect(w, r, route.Login)
+			a.sendToLogin(w, r)
 
 			return
 		}
@@ -75,6 +95,18 @@ func (a *Authenticator) RequireGuest(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *Authenticator) sendToLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		a.session.SetIntendedURL(r.Context(), r.URL.RequestURI())
+	}
+
+	a.responder.Redirect(w, r, route.Login)
+}
+
+func isLocalPath(path string) bool {
+	return strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "//")
 }
 
 func (a *Authenticator) authenticate(ctx context.Context) (domain.User, bool, error) {

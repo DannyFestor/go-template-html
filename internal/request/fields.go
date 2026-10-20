@@ -5,4 +5,5 @@ const (
 	FieldEmail                = "email"
 	FieldPassword             = "password"
 	FieldPasswordConfirmation = "password_confirmation"
+	FieldRemember             = "remember"
 )

@@ -17,21 +17,10 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
-const (
-	emailTakenMessage  = "This email address is already registered."
-	rateLimitedMessage = "Too many attempts. Please try again later."
-)
+const emailTakenMessage = "This email address is already registered."
 
 type registrar interface {
 	Run(ctx context.Context, in auth.RegisterIn) (auth.RegisterOut, error)
-}
-
-type authenticator interface {
-	SignIn(ctx context.Context, user domain.User)
-}
-
-type rateLimit interface {
-	Hit(ctx context.Context, key string) error
 }
 
 type Register struct {

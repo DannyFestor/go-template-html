@@ -72,6 +72,10 @@ _Avoid_: Script test, hook test
 A signed-in user who has proven ownership of their current email address by following the link sent to it.
 _Avoid_: Confirmed user, activated user
 
+**Remember token**:
+A long-lived credential that one device keeps so the user is signed back in after their session ends.
+_Avoid_: Remember-me cookie, persistent login, auth token
+
 **Security setting**:
 A choice an individual user makes about their own account's protection, such as enabling two-factor authentication.
 _Avoid_: Preference

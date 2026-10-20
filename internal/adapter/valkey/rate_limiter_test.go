@@ -102,6 +102,25 @@ func TestAttemptsAreIsolatedByKeyPrefix(t *testing.T) {
 	assertAllowed(t, newRateLimiter(t, testvalkey.New(t)), rateLimitKey, time.Minute)
 }
 
+func TestClearingAKeyStartsItsCountAfresh(t *testing.T) {
+	t.Parallel()
+
+	limiter := newRateLimiter(t, testvalkey.New(t))
+	hitTimes(t, limiter, maxAttempts+1, time.Minute)
+
+	require.NoError(t, limiter.Clear(t.Context(), rateLimitKey))
+
+	for range maxAttempts {
+		assertAllowed(t, limiter, rateLimitKey, time.Minute)
+	}
+}
+
+func TestClearingFailsWhileValkeyIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	assert.Error(t, newRateLimiter(t, testvalkey.Unreachable(t)).Clear(t.Context(), rateLimitKey))
+}
+
 func TestHittingFailsWhileValkeyIsUnreachable(t *testing.T) {
 	t.Parallel()
 

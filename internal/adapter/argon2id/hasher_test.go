@@ -90,6 +90,28 @@ func TestVerifyingAgainstAnUnusableHashFails(t *testing.T) {
 	}
 }
 
+func TestAHashMadeWithTheConfiguredParametersNeedsNoRehash(t *testing.T) {
+	t.Parallel()
+
+	hasher := owaspHasher(t)
+
+	assert.False(t, hasher.NeedsRehash(hasher.Hash("correct horse battery staple")))
+}
+
+func TestAHashMadeWithOtherParametersNeedsARehash(t *testing.T) {
+	t.Parallel()
+
+	hasher := hasherWith(t, argon2id.Params{MemoryKiB: 8, Iterations: 1, Parallelism: 1})
+
+	assert.True(t, hasher.NeedsRehash(argon2ReferenceCLIHash))
+}
+
+func TestAnUnusableHashNeedsARehash(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, owaspHasher(t).NeedsRehash("$2y$10$abcdefghijklmnopqrstuuWcK4Z0bHnS8Xx9z0e6M1o2p3q4r5s6t"))
+}
+
 func TestAHasherRefusesParametersArgon2CannotRunWith(t *testing.T) {
 	t.Parallel()
 

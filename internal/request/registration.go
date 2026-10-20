@@ -29,7 +29,7 @@ func (r Registration) Validate() validate.Errors {
 	errors := validate.Errors{}
 
 	errors.Check(validate.NotBlank(r.Name), FieldName, "Enter your name.")
-	errors.Check(validate.NotBlank(r.Email), FieldEmail, "Enter your email address.")
+	errors.Check(validate.NotBlank(r.Email), FieldEmail, enterYourEmail)
 	errors.Check(validate.EmailAddress(r.Email), FieldEmail, "Enter a valid email address.")
 	errors.Check(validate.MinRunes(r.Password, minPasswordRunes), FieldPassword,
 		fmt.Sprintf("The password must be at least %d characters.", minPasswordRunes))

@@ -1,0 +1,56 @@
+package login
+
+import (
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view/component"
+)
+
+type Form struct {
+	Email    string
+	Remember bool
+	Errors   map[string]string
+	Alert    string
+}
+
+templ Page(appName string, form Form) {
+	@component.AuthSplit(appName, "Log in to your account", "Enter your email and password below to log in") {
+		<form
+			method="post"
+			action={ templ.SafeURL(route.Login) }
+			hx-boost="false"
+			novalidate
+			class="flex flex-col gap-4"
+		>
+			@component.Alert(form.Alert)
+			@component.Field(component.FieldProps{
+				Label:        "Email address",
+				Name:         "email",
+				Type:         "email",
+				Value:        form.Email,
+				Placeholder:  "email@example.com",
+				Autocomplete: "email",
+				Error:        form.Errors["email"],
+			})
+			@component.Field(component.FieldProps{
+				Label:        "Password",
+				Name:         "password",
+				Type:         "password",
+				Value:        "",
+				Placeholder:  "Password",
+				Autocomplete: "current-password",
+				Error:        form.Errors["password"],
+			})
+			<div class="flex items-center justify-between">
+				@component.Checkbox("remember", "Remember me", form.Remember)
+				<a href={ templ.SafeURL(route.ForgotPassword) } class="text-sm text-zinc-500 underline">
+					Forgot your password?
+				</a>
+			</div>
+			@component.Button(component.ButtonProps{Label: "Log in", Type: "submit", FullWidth: true})
+		</form>
+		<p class="text-center text-sm text-zinc-500">
+			Don't have an account?
+			<a href={ templ.SafeURL(route.Register) } class="text-zinc-900 underline dark:text-white">Sign up</a>
+		</p>
+	}
+}
