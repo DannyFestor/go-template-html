@@ -13,7 +13,7 @@ import (
 const pruneExpiredRememberTokensInterval = 24 * time.Hour
 
 func registerAuthJobs(jobs *worker.Registry, pool *postgres.Pool) {
-	prune := auth.NewPruneExpiredRememberTokens(postgres.NewRememberTokenStore(pool), clock.System{})
+	prune := auth.NewPruneExpiredRememberTokens(newRememberTokenStore(pool), clock.System{})
 
 	worker.RegisterPeriodic(
 		jobs,

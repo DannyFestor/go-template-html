@@ -227,6 +227,30 @@ func TestARememberTokenRestoresTheSessionAfterTheSessionExpires(t *testing.T) {
 	assert.NotEqual(t, issued, running.rememberCookie(t), "the remember token was not rotated")
 }
 
+func TestARequestRacingTheRestoreWithTheSameTokenIsSignedInAndKeepsTheRotatedCookie(t *testing.T) {
+	t.Parallel()
+
+	running := startAppWhoseSessionsExpireAtOnce(t)
+	ada := running.createAda(t)
+	require.Equal(t, http.StatusSeeOther, running.login(t, rememberedCredentials(adaEmail, factory.Password)).status)
+	presented := running.rememberCookie(t)
+	require.Equal(t, http.StatusOK, running.get(t, route.Dashboard).status)
+
+	racing := running.sendWithoutCookieJar(t, outgoing{
+		method:  http.MethodGet,
+		path:    route.Dashboard,
+		headers: map[string]string{"Cookie": rememberCookieName + "=" + presented},
+		body:    nil,
+	})
+
+	require.Equal(t, http.StatusOK, racing.status)
+	assert.Equal(t, ada.Name, racing.document(t).Find("#user-menu-name").Text())
+
+	for _, setCookie := range racing.header.Values("Set-Cookie") {
+		assert.NotContains(t, setCookie, rememberCookieName+"=", "the racing request touched the remember cookie")
+	}
+}
+
 func TestWithoutRememberMeAnExpiredSessionSendsTheUserToLogin(t *testing.T) {
 	t.Parallel()
 

@@ -35,6 +35,7 @@ type RememberToken struct {
 	ValidatorDigest []byte
 	UserID          uuid.UUID
 	ExpiresAt       time.Time
+	ReplacedAt      *time.Time
 }
 
 type TwoFactorSecret struct {

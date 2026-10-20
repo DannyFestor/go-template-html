@@ -44,13 +44,17 @@ func presentedToken() domain.RememberToken {
 	return domain.RememberToken{Selector: "SELECTOR1", Validator: "VALIDATOR1"}
 }
 
+func adasUse(replay bool) domain.RememberTokenUse {
+	return domain.RememberTokenUse{UserID: storedAda().ID, Replay: replay}
+}
+
 func TestRecallConsumesTheTokenAndRemembersTheDeviceWithAFreshOne(t *testing.T) {
 	t.Parallel()
 
 	doubles := newRecallDoubles(t)
 	doubles.tokens.EXPECT().
 		Consume(gomock.Any(), presentedToken(), time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)).
-		Return(storedAda().ID, true, nil)
+		Return(adasUse(false), true, nil)
 	doubles.users.EXPECT().Find(gomock.Any(), storedAda().ID).Return(storedAda(), true, nil)
 	doubles.remember.EXPECT().
 		Run(gomock.Any(), auth.RememberDeviceIn{UserID: storedAda().ID}).
@@ -62,11 +66,27 @@ func TestRecallConsumesTheTokenAndRemembersTheDeviceWithAFreshOne(t *testing.T) 
 	assert.Equal(t, auth.RecallOut{User: storedAda(), Token: issuedToken()}, recalled)
 }
 
-func TestRecallRefusesATokenItCannotConsume(t *testing.T) {
+func TestRecallOfAReplayedTokenRecallsTheUserWithoutANewToken(t *testing.T) {
 	t.Parallel()
 
 	doubles := newRecallDoubles(t)
-	doubles.tokens.EXPECT().Consume(gomock.Any(), gomock.Any(), gomock.Any()).Return(domain.UserID(""), false, nil)
+	doubles.tokens.EXPECT().Consume(gomock.Any(), presentedToken(), gomock.Any()).Return(adasUse(true), true, nil)
+	doubles.users.EXPECT().Find(gomock.Any(), storedAda().ID).Return(storedAda(), true, nil)
+
+	recalled, err := doubles.recall(t).Run(t.Context(), auth.RecallIn{Token: presentedToken()})
+
+	require.NoError(t, err)
+	assert.Equal(t, storedAda(), recalled.User)
+	assert.Zero(t, recalled.Token)
+}
+
+func TestRecallRefusesATokenItCannotConsume(t *testing.T) {
+	t.Parallel()
+
+	var unused domain.RememberTokenUse
+
+	doubles := newRecallDoubles(t)
+	doubles.tokens.EXPECT().Consume(gomock.Any(), gomock.Any(), gomock.Any()).Return(unused, false, nil)
 
 	_, err := doubles.recall(t).Run(t.Context(), auth.RecallIn{Token: presentedToken()})
 
@@ -79,7 +99,7 @@ func TestRecallRefusesATokenWhoseUserIsGone(t *testing.T) {
 	var gone domain.User
 
 	doubles := newRecallDoubles(t)
-	doubles.tokens.EXPECT().Consume(gomock.Any(), gomock.Any(), gomock.Any()).Return(storedAda().ID, true, nil)
+	doubles.tokens.EXPECT().Consume(gomock.Any(), gomock.Any(), gomock.Any()).Return(adasUse(false), true, nil)
 	doubles.users.EXPECT().Find(gomock.Any(), storedAda().ID).Return(gone, false, nil)
 
 	_, err := doubles.recall(t).Run(t.Context(), auth.RecallIn{Token: presentedToken()})

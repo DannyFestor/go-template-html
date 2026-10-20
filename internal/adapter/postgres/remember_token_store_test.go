@@ -3,6 +3,7 @@
 package postgres_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/adapter/remembertoken"
 	"github.com/DannyFestor/go-template-html/internal/domain"
 )
+
+const replayWindow = 30 * time.Second
 
 type rememberTokenFixture struct {
 	pool   *postgres.Pool
@@ -25,7 +28,11 @@ func newRememberTokenFixture(t *testing.T) rememberTokenFixture {
 
 	pool := openTestDatabase(t)
 
-	return rememberTokenFixture{pool: pool, store: postgres.NewRememberTokenStore(pool), userID: createUser(t, pool)}
+	return rememberTokenFixture{
+		pool:   pool,
+		store:  postgres.NewRememberTokenStore(pool, replayWindow),
+		userID: createUser(t, pool),
+	}
 }
 
 func (f rememberTokenFixture) issue(t *testing.T, expiresAt time.Time) domain.RememberToken {
@@ -37,31 +44,90 @@ func (f rememberTokenFixture) issue(t *testing.T, expiresAt time.Time) domain.Re
 	return token
 }
 
-func (f rememberTokenFixture) consume(t *testing.T, token domain.RememberToken, now time.Time) (domain.UserID, bool) {
+func (f rememberTokenFixture) consume(
+	t *testing.T,
+	token domain.RememberToken,
+	now time.Time,
+) (domain.RememberTokenUse, bool) {
 	t.Helper()
 
-	userID, consumed, err := f.store.Consume(t.Context(), token, now)
+	use, consumed, err := f.store.Consume(t.Context(), token, now)
 	require.NoError(t, err)
 
-	return userID, consumed
+	return use, consumed
 }
 
 func noon() time.Time {
 	return time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 }
 
-func TestAnIssuedRememberTokenIsConsumedOnceForItsUser(t *testing.T) {
+func TestAnIssuedRememberTokenIsConsumedForItsUser(t *testing.T) {
 	t.Parallel()
 
 	fixture := newRememberTokenFixture(t)
 	token := fixture.issue(t, noon().Add(time.Hour))
 
-	userID, consumed := fixture.consume(t, token, noon())
-	assert.True(t, consumed)
-	assert.Equal(t, fixture.userID, userID)
+	use, consumed := fixture.consume(t, token, noon())
 
-	_, consumedAgain := fixture.consume(t, token, noon())
-	assert.False(t, consumedAgain)
+	assert.True(t, consumed)
+	assert.Equal(t, domain.RememberTokenUse{UserID: fixture.userID, Replay: false}, use)
+}
+
+func TestAConsumedRememberTokenIsAReplayUntilTheReplayWindowCloses(t *testing.T) {
+	t.Parallel()
+
+	fixture := newRememberTokenFixture(t)
+	token := fixture.issue(t, noon().Add(time.Hour))
+	fixture.consume(t, token, noon())
+
+	replayed, consumedAgain := fixture.consume(t, token, noon().Add(replayWindow-time.Second))
+	assert.True(t, consumedAgain)
+	assert.Equal(t, domain.RememberTokenUse{UserID: fixture.userID, Replay: true}, replayed)
+
+	_, consumedAfterTheWindow := fixture.consume(t, token, noon().Add(replayWindow))
+	assert.False(t, consumedAfterTheWindow)
+}
+
+func TestAConcurrentConsumeWaitsForTheFirstAndIsAReplay(t *testing.T) {
+	t.Parallel()
+
+	fixture := newRememberTokenFixture(t)
+	token := fixture.issue(t, noon().Add(time.Hour))
+	firstConsumed, releaseFirst := make(chan struct{}), make(chan struct{})
+	firstDone := make(chan error, 1)
+
+	go func() {
+		firstDone <- postgres.NewTransactor(fixture.pool).WithinTransaction(t.Context(), func(ctx context.Context) error {
+			_, _, err := fixture.store.Consume(ctx, token, noon())
+
+			close(firstConsumed)
+			<-releaseFirst
+
+			return err //nolint:wrapcheck // The test only checks that the first consume succeeded.
+		})
+	}()
+
+	<-firstConsumed
+	time.AfterFunc(100*time.Millisecond, func() { close(releaseFirst) })
+
+	second, consumed := fixture.consume(t, token, noon())
+
+	require.NoError(t, <-firstDone)
+	assert.True(t, consumed)
+	assert.True(t, second.Replay)
+}
+
+func TestAReplayDoesNotExtendTheReplayWindow(t *testing.T) {
+	t.Parallel()
+
+	fixture := newRememberTokenFixture(t)
+	token := fixture.issue(t, noon().Add(time.Hour))
+	fixture.consume(t, token, noon())
+	fixture.consume(t, token, noon().Add(replayWindow/2))
+
+	_, consumed := fixture.consume(t, token, noon().Add(replayWindow+time.Second))
+
+	assert.False(t, consumed)
 }
 
 func TestARememberTokenWithAWrongValidatorIsNotConsumed(t *testing.T) {
@@ -74,8 +140,9 @@ func TestARememberTokenWithAWrongValidatorIsNotConsumed(t *testing.T) {
 	_, consumed := fixture.consume(t, forged, noon())
 	assert.False(t, consumed)
 
-	_, consumedWithTheRightValidator := fixture.consume(t, token, noon())
+	use, consumedWithTheRightValidator := fixture.consume(t, token, noon())
 	assert.True(t, consumedWithTheRightValidator)
+	assert.False(t, use.Replay)
 }
 
 func TestARememberTokenIsNotConsumedOnceItExpires(t *testing.T) {
@@ -101,21 +168,30 @@ func TestAForgottenRememberTokenIsNotConsumed(t *testing.T) {
 	assert.False(t, consumed)
 }
 
-func TestDeleteExpiredDeletesOnlyTheRememberTokensExpiredByNow(t *testing.T) {
+func TestDeleteExpiredDeletesTheExpiredTokensAndTheReplacedOnesPastTheReplayWindow(t *testing.T) {
 	t.Parallel()
 
 	fixture := newRememberTokenFixture(t)
 	expired := fixture.issue(t, noon())
-	live := fixture.issue(t, noon().Add(time.Second))
+	live := fixture.issue(t, noon().Add(time.Hour))
+	replacedLongAgo := fixture.issue(t, noon().Add(time.Hour))
+	replacedJustNow := fixture.issue(t, noon().Add(time.Hour))
+	fixture.consume(t, replacedLongAgo, noon().Add(-replayWindow))
+	fixture.consume(t, replacedJustNow, noon().Add(-replayWindow+time.Second))
 
 	require.NoError(t, fixture.store.DeleteExpired(t.Context(), noon()))
 
-	var beforeEitherExpired time.Time
+	var beforeAnyExpiry time.Time
 
-	_, expiredKept := fixture.consume(t, expired, beforeEitherExpired)
-	_, liveKept := fixture.consume(t, live, beforeEitherExpired)
-	assert.False(t, expiredKept)
-	assert.True(t, liveKept)
+	for token, kept := range map[domain.RememberToken]bool{
+		expired:         false,
+		live:            true,
+		replacedLongAgo: false,
+		replacedJustNow: true,
+	} {
+		_, found := fixture.consume(t, token, beforeAnyExpiry)
+		assert.Equal(t, kept, found, token.Selector)
+	}
 }
 
 func TestDeletingAUserDeletesItsRememberTokens(t *testing.T) {

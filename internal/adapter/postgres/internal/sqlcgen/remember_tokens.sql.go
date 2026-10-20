@@ -13,36 +13,76 @@ import (
 )
 
 const consumeRememberToken = `-- name: ConsumeRememberToken :one
-DELETE FROM remember_tokens
+WITH
+  presented AS (
+    SELECT
+      candidate.selector,
+      candidate.replaced_at
+    FROM
+      remember_tokens AS candidate
+    WHERE
+      candidate.selector = $2::text
+      AND candidate.validator_digest = $3::bytea
+      AND candidate.expires_at > $1::timestamptz
+      AND (
+        candidate.replaced_at IS NULL
+        OR candidate.replaced_at > $4::timestamptz
+      )
+    FOR UPDATE
+  )
+UPDATE remember_tokens
+SET
+  replaced_at = coalesce(
+    remember_tokens.replaced_at,
+    $1::timestamptz
+  )
+FROM
+  presented
 WHERE
-  selector = $1
-  AND validator_digest = $2
-  AND expires_at > $3::timestamptz
+  remember_tokens.selector = presented.selector
 RETURNING
-  user_id
+  remember_tokens.user_id,
+  (presented.replaced_at IS NOT NULL)::boolean AS replay
 `
 
 type ConsumeRememberTokenParams struct {
+	Now             time.Time
 	Selector        string
 	ValidatorDigest []byte
-	Now             time.Time
+	ReplayableAfter time.Time
 }
 
-func (q *Queries) ConsumeRememberToken(ctx context.Context, arg ConsumeRememberTokenParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, consumeRememberToken, arg.Selector, arg.ValidatorDigest, arg.Now)
-	var user_id uuid.UUID
-	err := row.Scan(&user_id)
-	return user_id, err
+type ConsumeRememberTokenRow struct {
+	UserID uuid.UUID
+	Replay bool
+}
+
+func (q *Queries) ConsumeRememberToken(ctx context.Context, arg ConsumeRememberTokenParams) (ConsumeRememberTokenRow, error) {
+	row := q.db.QueryRow(ctx, consumeRememberToken,
+		arg.Now,
+		arg.Selector,
+		arg.ValidatorDigest,
+		arg.ReplayableAfter,
+	)
+	var i ConsumeRememberTokenRow
+	err := row.Scan(&i.UserID, &i.Replay)
+	return i, err
 }
 
 const deleteExpiredRememberTokens = `-- name: DeleteExpiredRememberTokens :exec
 DELETE FROM remember_tokens
 WHERE
   expires_at <= $1::timestamptz
+  OR replaced_at <= $2::timestamptz
 `
 
-func (q *Queries) DeleteExpiredRememberTokens(ctx context.Context, now time.Time) error {
-	_, err := q.db.Exec(ctx, deleteExpiredRememberTokens, now)
+type DeleteExpiredRememberTokensParams struct {
+	Now             time.Time
+	ReplayableAfter time.Time
+}
+
+func (q *Queries) DeleteExpiredRememberTokens(ctx context.Context, arg DeleteExpiredRememberTokensParams) error {
+	_, err := q.db.Exec(ctx, deleteExpiredRememberTokens, arg.Now, arg.ReplayableAfter)
 	return err
 }
 

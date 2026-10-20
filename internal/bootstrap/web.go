@@ -129,7 +129,7 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 	a.pool = pool
 	a.Jobs = newJobQueue(pool)
 	a.Users = newUserStore(pool)
-	a.RememberTokens = postgres.NewRememberTokenStore(pool)
+	a.RememberTokens = newRememberTokenStore(pool)
 
 	client, err := valkey.Open(valkeyConfig(config.Valkey))
 	if err != nil {

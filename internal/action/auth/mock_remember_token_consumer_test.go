@@ -43,10 +43,10 @@ func (m *MockRememberTokenConsumer) EXPECT() *MockRememberTokenConsumerMockRecor
 }
 
 // Consume mocks base method.
-func (m *MockRememberTokenConsumer) Consume(ctx context.Context, token domain.RememberToken, now time.Time) (domain.UserID, bool, error) {
+func (m *MockRememberTokenConsumer) Consume(ctx context.Context, token domain.RememberToken, now time.Time) (domain.RememberTokenUse, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Consume", ctx, token, now)
-	ret0, _ := ret[0].(domain.UserID)
+	ret0, _ := ret[0].(domain.RememberTokenUse)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
