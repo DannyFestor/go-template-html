@@ -155,6 +155,24 @@ func TestLoginIsRateLimitedPerEmailAndClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, running.login(t, credentials("grace@example.com", "wrong")).status)
 }
 
+func TestASuccessfulLoginResetsItsRateLimit(t *testing.T) {
+	t.Parallel()
+
+	running := startApp(t)
+	running.createAda(t)
+
+	for range testapp.RateLimitAttempts - 1 {
+		require.Equal(t, http.StatusUnprocessableEntity, running.login(t, credentials(adaEmail, "wrong")).status)
+	}
+
+	require.Equal(t, http.StatusSeeOther, running.login(t, credentials(adaEmail, factory.Password)).status)
+	require.Equal(t, http.StatusSeeOther, running.post(t, route.Logout, url.Values{}).status)
+
+	for range testapp.RateLimitAttempts {
+		assert.Equal(t, http.StatusUnprocessableEntity, running.login(t, credentials(adaEmail, "wrong")).status)
+	}
+}
+
 func TestALoginSendsTheUserToThePageTheyAskedForAsAGuest(t *testing.T) {
 	t.Parallel()
 

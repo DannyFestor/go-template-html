@@ -27,12 +27,18 @@ type sessionStarter interface {
 	Intended(ctx context.Context) string
 }
 
+type clearableRateLimit interface {
+	rateLimit
+
+	Clear(ctx context.Context, key string) error
+}
+
 type Login struct {
 	appName   string
 	responder *web.Responder
 	login     loginAction
 	sessions  sessionStarter
-	limit     rateLimit
+	limit     clearableRateLimit
 }
 
 func NewLogin(
@@ -40,7 +46,7 @@ func NewLogin(
 	responder *web.Responder,
 	login loginAction,
 	sessions sessionStarter,
-	limit rateLimit,
+	limit clearableRateLimit,
 ) *Login {
 	return &Login{appName: appName, responder: responder, login: login, sessions: sessions, limit: limit}
 }
@@ -82,6 +88,11 @@ func (h *Login) logIn(w http.ResponseWriter, r *http.Request, attempt request.Lo
 
 	if err != nil {
 		return fmt.Errorf("log the user in: %w", err)
+	}
+
+	err = h.limit.Clear(r.Context(), loginLimitKey(r.Context(), attempt))
+	if err != nil {
+		return fmt.Errorf("clear the login attempts: %w", err)
 	}
 
 	h.sessions.SignIn(w, r, loggedIn.User, loggedIn.RememberToken)

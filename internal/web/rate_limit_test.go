@@ -26,6 +26,7 @@ type fakeRateLimiter struct {
 	retryAfter time.Duration
 	err        error
 	hits       []hit
+	cleared    []string
 }
 
 func (f *fakeRateLimiter) Hit(
@@ -39,18 +40,50 @@ func (f *fakeRateLimiter) Hit(
 	return f.allowed, f.retryAfter, f.err
 }
 
+func (f *fakeRateLimiter) Clear(_ context.Context, key string) error {
+	f.cleared = append(f.cleared, key)
+
+	return f.err
+}
+
+func loginLimit(limiter *fakeRateLimiter) *web.RateLimit {
+	return web.NewRateLimit(limiter, web.Limit{Name: "login", MaxAttempts: 5, Window: time.Minute})
+}
+
 func hitLoginLimit(t *testing.T, limiter *fakeRateLimiter) error {
 	t.Helper()
 
-	limit := web.NewRateLimit(limiter, web.Limit{Name: "login", MaxAttempts: 5, Window: time.Minute})
+	limit := loginLimit(limiter)
 
 	return limit.Hit(t.Context(), "ada@example.com|192.0.2.1") //nolint:wrapcheck // the tests inspect the error itself
+}
+
+func TestRateLimitClearsTheKeyUnderTheLimitsName(t *testing.T) {
+	t.Parallel()
+
+	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: nil, hits: nil, cleared: nil}
+
+	require.NoError(t, loginLimit(limiter).Clear(t.Context(), "ada@example.com|192.0.2.1"))
+	assert.Equal(t, []string{"login:ada@example.com|192.0.2.1"}, limiter.cleared)
+}
+
+func TestRateLimitFailsWithAServiceUnavailableWhenItCannotClear(t *testing.T) {
+	t.Parallel()
+
+	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: errValkeyDown, hits: nil, cleared: nil}
+
+	err := loginLimit(limiter).Clear(t.Context(), "ada@example.com|192.0.2.1")
+
+	statusErr, ok := errors.AsType[*web.StatusError](err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusServiceUnavailable, statusErr.Status)
+	assert.ErrorIs(t, err, errValkeyDown)
 }
 
 func TestRateLimitCountsTheAttemptUnderTheLimitsName(t *testing.T) {
 	t.Parallel()
 
-	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: nil, hits: nil}
+	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: nil, hits: nil, cleared: nil}
 
 	require.NoError(t, hitLoginLimit(t, limiter))
 	assert.Equal(t, []hit{{key: "login:ada@example.com|192.0.2.1", maxAttempts: 5, window: time.Minute}}, limiter.hits)
@@ -59,7 +92,7 @@ func TestRateLimitCountsTheAttemptUnderTheLimitsName(t *testing.T) {
 func TestRateLimitRefusesARefusedAttemptWithTooManyRequests(t *testing.T) {
 	t.Parallel()
 
-	limiter := &fakeRateLimiter{allowed: false, retryAfter: 42 * time.Second, err: nil, hits: nil}
+	limiter := &fakeRateLimiter{allowed: false, retryAfter: 42 * time.Second, err: nil, hits: nil, cleared: nil}
 
 	assert.Equal(t, web.ErrTooManyRequests(42*time.Second), hitLoginLimit(t, limiter))
 }
@@ -67,7 +100,7 @@ func TestRateLimitRefusesARefusedAttemptWithTooManyRequests(t *testing.T) {
 func TestRateLimitRefusesARefusedAttemptEvenWithNoWaitLeft(t *testing.T) {
 	t.Parallel()
 
-	limiter := &fakeRateLimiter{allowed: false, retryAfter: 0, err: nil, hits: nil}
+	limiter := &fakeRateLimiter{allowed: false, retryAfter: 0, err: nil, hits: nil, cleared: nil}
 
 	assert.Equal(t, web.ErrTooManyRequests(0), hitLoginLimit(t, limiter))
 }
@@ -75,7 +108,7 @@ func TestRateLimitRefusesARefusedAttemptEvenWithNoWaitLeft(t *testing.T) {
 func TestRateLimitRefusesWithAReportedServiceUnavailableWhenItCannotCount(t *testing.T) {
 	t.Parallel()
 
-	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: errValkeyDown, hits: nil}
+	limiter := &fakeRateLimiter{allowed: true, retryAfter: 0, err: errValkeyDown, hits: nil, cleared: nil}
 
 	response := respondWithError(t, nil, false, hitLoginLimit(t, limiter))
 
