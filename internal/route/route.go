@@ -6,6 +6,7 @@ const (
 	Readyz             = "/readyz"
 	Assets             = "/assets/"
 	Login              = "/login"
+	ForgotPassword     = "/forgot-password"
 	Register           = "/register"
 	Logout             = "/logout"
 	Dashboard          = "/dashboard"

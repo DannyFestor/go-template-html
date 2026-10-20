@@ -50,6 +50,12 @@ func createUser(t *testing.T, pool *postgres.Pool) domain.UserID {
 	return user.ID
 }
 
+func deleteUser(t *testing.T, pool *postgres.Pool, id domain.UserID) {
+	t.Helper()
+
+	require.NoError(t, postgres.Exec(t.Context(), pool, "DELETE FROM users WHERE id = $1", string(id)))
+}
+
 func newRecoveryCodeStore(t *testing.T, pool *postgres.Pool) *postgres.RecoveryCodeStore {
 	t.Helper()
 

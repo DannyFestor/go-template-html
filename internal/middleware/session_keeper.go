@@ -21,15 +21,17 @@ type clock interface {
 type sessionKeeper struct {
 	store            sessionStore
 	clock            clock
-	cookie           sessionCookie
+	cookie           hostOnlyCookie
 	absoluteLifetime time.Duration
 }
 
 func (k *sessionKeeper) load(r *http.Request) (*sessionState, error) {
-	token, found := k.cookie.read(r)
+	value, found := k.cookie.read(r)
 	if !found {
 		return guestSessionState(), nil
 	}
+
+	token := sessionToken(value)
 
 	encoded, stored, err := k.store.Load(r.Context(), token.storageID())
 	if err != nil {
@@ -74,7 +76,7 @@ func (k *sessionKeeper) commit(ctx context.Context, w http.ResponseWriter, state
 	}
 
 	if minted {
-		k.cookie.issue(w, state.token)
+		k.cookie.set(w, string(state.token), 0)
 	}
 
 	return nil

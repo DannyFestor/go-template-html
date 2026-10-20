@@ -6,6 +6,7 @@ type sessionData struct {
 	UserID                string    `json:"userId,omitzero"`
 	CredentialFingerprint string    `json:"credentialFingerprint,omitzero"`
 	Flash                 string    `json:"flash,omitzero"`
+	IntendedURL           string    `json:"intendedUrl,omitzero"`
 	ExpiresAt             time.Time `json:"expiresAt"`
 }
 

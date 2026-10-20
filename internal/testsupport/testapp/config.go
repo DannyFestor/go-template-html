@@ -20,6 +20,7 @@ const (
 	jobConcurrency          = 1
 	statementTimeout        = 5 * time.Second
 	sessionLifetime         = time.Hour
+	rememberLifetime        = 24 * time.Hour
 	argon2MinimumKiBPerLane = 8
 	appKeyBytes             = 32
 	smtpSubmissionPort      = 587
@@ -45,13 +46,18 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 			CSRFTrustedOrigins: nil,
 			TrustedProxies:     nil,
 		},
-		DB:              dbConfig(database),
-		Valkey:          valkeyConfig(valkey),
-		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
+		DB:     dbConfig(database),
+		Valkey: valkeyConfig(valkey),
+		Session: bootstrap.Session{
+			IdleLifetime:     sessionLifetime,
+			AbsoluteLifetime: sessionLifetime,
+			RememberLifetime: rememberLifetime,
+		},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
 		RateLimits: bootstrap.RateLimits{
 			Registration: bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute},
+			Login:        bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute},
 		},
 		Queue: bootstrap.Queue{
 			Concurrency:     jobConcurrency,

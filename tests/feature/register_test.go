@@ -5,7 +5,6 @@ package feature_test
 import (
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,12 +28,7 @@ func registration(email, password string) url.Values {
 func (a *app) register(t *testing.T, form url.Values) response {
 	t.Helper()
 
-	return a.send(t, outgoing{
-		method:  http.MethodPost,
-		path:    route.Register,
-		headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		body:    strings.NewReader(form.Encode()),
-	})
+	return a.post(t, route.Register, form)
 }
 
 func TestTheRegisterPageShowsTheRegistrationForm(t *testing.T) {
@@ -112,8 +106,7 @@ func TestRegistrationIsRateLimitedPerClientIP(t *testing.T) {
 
 	assert.Equal(t, http.StatusTooManyRequests, refused.status)
 	assert.NotEmpty(t, refused.header.Get("Retry-After"))
-	assert.Equal(t, "Too many attempts. Please try again later.",
-		refused.document(t).Find(`form [role="alert"]`).Text())
+	assert.Equal(t, rateLimitedMessage, refused.document(t).Find(`form [role="alert"]`).Text())
 }
 
 func TestASignedInUserRequestingTheRegisterPageIsSentToTheDashboard(t *testing.T) {

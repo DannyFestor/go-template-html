@@ -55,19 +55,19 @@ func (s *sessionState) clear() {
 	s.changed = true
 }
 
-func (s *sessionState) setFlash(message string) {
-	s.data.Flash = message
+func (s *sessionState) set(field *string, value string) {
+	*field = value
 	s.changed = true
 }
 
-func (s *sessionState) takeFlash() string {
-	message := s.data.Flash
-	if message != "" {
-		s.data.Flash = ""
+func (s *sessionState) take(field *string) string {
+	value := *field
+	if value != "" {
+		*field = ""
 		s.changed = true
 	}
 
-	return message
+	return value
 }
 
 func (s *sessionState) retireToken() {

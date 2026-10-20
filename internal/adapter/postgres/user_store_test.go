@@ -83,7 +83,7 @@ func TestDeletingAUserDeletesItsTwoFactorSecretAndRecoveryCodes(t *testing.T) {
 	require.NoError(t, secrets.Save(t.Context(), user, totp.NewSecret()))
 	require.NoError(t, codes.Add(t.Context(), user, recoverycode.NewSet()))
 
-	require.NoError(t, postgres.Exec(t.Context(), pool, "DELETE FROM users WHERE id = $1", string(user)))
+	deleteUser(t, pool, user)
 
 	_, found, err := secrets.Find(t.Context(), user)
 	require.NoError(t, err)
@@ -92,6 +92,46 @@ func TestDeletingAUserDeletesItsTwoFactorSecretAndRecoveryCodes(t *testing.T) {
 	remaining, err := codes.List(t.Context(), user)
 	require.NoError(t, err)
 	assert.Empty(t, remaining, "recovery codes")
+}
+
+func TestFindByEmailFindsTheUserInAnyCase(t *testing.T) {
+	t.Parallel()
+
+	store := newUserStore(openTestDatabase(t))
+	created, err := store.Create(t.Context(), ada("Ada@Example.com"))
+	require.NoError(t, err)
+
+	found, ok, err := store.FindByEmail(t.Context(), "ADA@example.COM")
+
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, created.ID, found.ID)
+	assert.Equal(t, "Ada@Example.com", found.Email)
+}
+
+func TestFindByEmailReportsAnUnknownEmail(t *testing.T) {
+	t.Parallel()
+
+	_, ok, err := newUserStore(openTestDatabase(t)).FindByEmail(t.Context(), "nobody@example.com")
+
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestUpdatePasswordHashReplacesTheStoredHash(t *testing.T) {
+	t.Parallel()
+
+	const replacement domain.PasswordHash = "$argon2id$v=19$m=16,t=1,p=1$bmV3$a2V5"
+
+	pool := openTestDatabase(t)
+	store := newUserStore(pool)
+	user := createUser(t, pool)
+
+	require.NoError(t, store.UpdatePasswordHash(t.Context(), user, replacement))
+
+	found, _, err := store.Find(t.Context(), user)
+	require.NoError(t, err)
+	assert.Equal(t, replacement, found.PasswordHash)
 }
 
 func ada(email string) domain.NewUser {

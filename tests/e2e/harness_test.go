@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DannyFestor/go-template-html/internal/factory"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
@@ -20,6 +21,7 @@ import (
 const (
 	appName          = "E2E Test App"
 	consoleErrorType = "error"
+	factorySeed      = 1
 )
 
 type browserPage struct {
@@ -33,24 +35,39 @@ type pageErrors struct {
 	messages []string
 }
 
+type app struct {
+	*testapp.App
+
+	server *httptest.Server
+}
+
 func openPage(t *testing.T, path string) browserPage {
 	t.Helper()
 
-	server := startApp(t)
+	return startApp(t).open(t, path)
+}
+
+func startApp(t *testing.T) *app {
+	t.Helper()
+
+	testApp := testapp.New(t, testapp.Config(appName, testdb.New(t), testvalkey.New(t)), t.Output())
+
+	return &app{App: testApp, server: testapp.Serve(t, testApp.Handler())}
+}
+
+func (a *app) open(t *testing.T, path string) browserPage {
+	t.Helper()
+
 	page := newPage(t)
 
-	_, err := page.Goto(server.URL + path)
+	_, err := page.Goto(a.server.URL + path)
 	require.NoError(t, err)
 
 	return page
 }
 
-func startApp(t *testing.T) *httptest.Server {
-	t.Helper()
-
-	webApp := testapp.New(t, testapp.Config(appName, testdb.New(t), testvalkey.New(t)), t.Output())
-
-	return testapp.Serve(t, webApp.Handler())
+func (a *app) factory() *factory.Factory {
+	return factory.New(a.Users, a.Passwords, factorySeed)
 }
 
 func newPage(t *testing.T) browserPage {

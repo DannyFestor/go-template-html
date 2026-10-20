@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const sessionCookieName = "session"
+
 type SessionSettings struct {
 	Secure           bool
 	AbsoluteLifetime time.Duration
@@ -19,7 +21,7 @@ func LoadAndSaveSession(
 	keeper := &sessionKeeper{
 		store:            store,
 		clock:            clock,
-		cookie:           sessionCookie{secure: settings.Secure},
+		cookie:           hostOnlyCookie{baseName: sessionCookieName, secure: settings.Secure},
 		absoluteLifetime: settings.AbsoluteLifetime,
 	}
 

@@ -58,6 +58,7 @@ func NewWorkerApp(ctx context.Context, config Config, logger *slog.Logger, sende
 	jobs := worker.NewRegistry()
 	registerQueueJobs(jobs, jobQueue, config.Queue)
 	registerMailJobs(jobs, sender)
+	registerAuthJobs(jobs, pool)
 
 	return &WorkerApp{
 		Jobs:   jobs,

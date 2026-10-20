@@ -109,9 +109,15 @@ func newSessionApp() *sessionApp {
 func (a *sessionApp) serve(t *testing.T, handler http.HandlerFunc, cookie *http.Cookie) served {
 	t.Helper()
 
+	return a.serveAt(t, "/", handler, cookie)
+}
+
+func (a *sessionApp) serveAt(t *testing.T, target string, handler http.HandlerFunc, cookie *http.Cookie) served {
+	t.Helper()
+
 	settings := middleware.SessionSettings{Secure: a.secure, AbsoluteLifetime: absoluteLifetime}
 
-	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, nil)
 	if cookie != nil {
 		request.AddCookie(cookie)
 	}

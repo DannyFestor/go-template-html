@@ -166,6 +166,45 @@ func TestAFailingUserLookupRendersTheError(t *testing.T) {
 	assert.ErrorIs(t, app.responder.rendered[0], errUsersDown)
 }
 
+func (a *authApp) intendedAfterLogin(t *testing.T, cookie *http.Cookie) string {
+	t.Helper()
+
+	return a.serve(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, a.authenticator.Intended(r.Context()))
+	}, cookie).body
+}
+
+func (a *authApp) guestRequests(t *testing.T, target string) *http.Cookie {
+	t.Helper()
+
+	return a.serveAt(t, target, a.authenticator.Require(http.HandlerFunc(greetingTheUser)).ServeHTTP, nil).cookie(t)
+}
+
+func TestTheGuardedPageAGuestAskedForIsIntendedOnceAfterLogin(t *testing.T) {
+	t.Parallel()
+
+	app := newAuthApp()
+	cookie := app.guestRequests(t, "/dashboard?tab=team")
+
+	assert.Equal(t, "/dashboard?tab=team", app.intendedAfterLogin(t, cookie))
+	assert.Equal(t, route.Dashboard, app.intendedAfterLogin(t, cookie))
+}
+
+func TestWithoutAGuardedPageAskedForTheDashboardIsIntended(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, route.Dashboard, newAuthApp().intendedAfterLogin(t, nil))
+}
+
+func TestAnIntendedPageOffThisSiteFallsBackToTheDashboard(t *testing.T) {
+	t.Parallel()
+
+	app := newAuthApp()
+	cookie := app.guestRequests(t, "//evil.example/")
+
+	assert.Equal(t, route.Dashboard, app.intendedAfterLogin(t, cookie))
+}
+
 func (a *authApp) requestTheGuestPage(t *testing.T, cookie *http.Cookie) served {
 	t.Helper()
 
@@ -227,6 +266,6 @@ func (a *authApp) assertSignedOutAndSentToLogin(t *testing.T, cookie *http.Cooki
 
 	assert.Equal(t, http.StatusSeeOther, guarded.status)
 	assert.Equal(t, []string{route.Login}, a.responder.redirects)
-	assert.Negative(t, guarded.cookie(t).MaxAge, "the session cookie was not cleared")
+	assert.NotEqual(t, cookie.Value, guarded.cookie(t).Value, "the session token was not replaced")
 	assert.Equal(t, "guest ", a.serve(t, showingTheUser, cookie).body)
 }

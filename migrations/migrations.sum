@@ -1,7 +1,8 @@
-h1:0D/9+fyIm972oXtEnp7ohbJ5C8zQu5S7p1CosQukfvw=
+h1:yvxs67UJA84r4Rf9xCvx0yeRxIgHW8Hb6ExKz8u04RI=
 00001_create_public_schema.sql h1:vLNn0BFLFc/KUDblvqmYvthWwi/4AebHYQoiaWy8FZc=
 00002_create_jobs.sql h1:Cs/RyCfGa23YspRGdhjHpcJ4GPymLyyPvsDPNwKoxoY=
 00003_add_jobs_scheduled_for.sql h1:E+0rluCTGAUI6Z8eIS/HUIMnp9A8TmW7fRAInIfixRM=
 00004_create_two_factor_secrets.sql h1:LJ03tUcB87wgr79Ug7N6uf4crf4JkN64FEkjwx6euvk=
 00005_create_recovery_codes.sql h1:fi7LL/kLsjDLivQ+/VPOBhY5ByPGIp+D2F7sUd7FU2c=
 00006_create_users.sql h1:/sY5GZAyEmD9/oY1Imq/8dYMJySD7Rey4xnVg1HBd9M=
+00007_create_remember_tokens.sql h1:HImCSnbI7LESa/OS3wYaepuvzSscmfgMmMUAUOsjPwU=

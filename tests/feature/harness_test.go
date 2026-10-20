@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 
@@ -109,16 +110,33 @@ func startAppOn(t *testing.T, config bootstrap.Config) *app {
 func (a *app) cookies(t *testing.T) []*http.Cookie {
 	t.Helper()
 
+	return a.server.Client().Jar.Cookies(a.address(t))
+}
+
+func (a *app) address(t *testing.T) *url.URL {
+	t.Helper()
+
 	address, err := url.Parse(a.server.URL)
 	require.NoError(t, err)
 
-	return a.server.Client().Jar.Cookies(address)
+	return address
 }
 
 func (a *app) get(t *testing.T, path string) response {
 	t.Helper()
 
 	return a.send(t, outgoing{method: http.MethodGet, path: path, headers: nil, body: nil})
+}
+
+func (a *app) post(t *testing.T, path string, form url.Values) response {
+	t.Helper()
+
+	return a.send(t, outgoing{
+		method:  http.MethodPost,
+		path:    path,
+		headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		body:    strings.NewReader(form.Encode()),
+	})
 }
 
 func (a *app) send(t *testing.T, out outgoing) response {

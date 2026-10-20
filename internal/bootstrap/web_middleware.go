@@ -57,6 +57,12 @@ func sessionSettings(config Config) middleware.SessionSettings {
 	}
 }
 
+func chain(wrappers ...wrapper) wrapper {
+	return func(handler http.Handler) http.Handler {
+		return withMiddleware(handler, wrappers)
+	}
+}
+
 func withMiddleware(handler http.Handler, chain []wrapper) http.Handler {
 	for _, wrap := range slices.Backward(chain) {
 		handler = wrap(handler)
