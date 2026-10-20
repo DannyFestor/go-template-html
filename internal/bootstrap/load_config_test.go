@@ -95,15 +95,17 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			KeyPrefix: "go-template-html:",
 		},
 		Session: bootstrap.Session{
-			IdleLifetime:     2 * time.Hour,
-			AbsoluteLifetime: 24 * time.Hour,
-			RememberLifetime: 30 * 24 * time.Hour,
+			IdleLifetime:                2 * time.Hour,
+			AbsoluteLifetime:            24 * time.Hour,
+			RememberLifetime:            30 * 24 * time.Hour,
+			PasswordConfirmationTimeout: 3 * time.Hour,
 		},
 		PasswordHashing: bootstrap.PasswordHashing{MemoryKiB: 19 * 1024, Iterations: 2, Parallelism: 1},
 		SignedURL:       bootstrap.SignedURL{TTL: 2 * time.Hour},
 		RateLimits: bootstrap.RateLimits{
-			Registration: bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
-			Login:        bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
+			Registration:         bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
+			Login:                bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
+			PasswordConfirmation: bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
 		},
 		Log: bootstrap.Log{Level: slog.LevelInfo},
 	}, config)

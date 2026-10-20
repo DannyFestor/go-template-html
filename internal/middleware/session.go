@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 var errNoSession = errors.New("no session in the request context, LoadAndSaveSession must wrap the handler")
@@ -51,6 +52,14 @@ func (Session) TakeIntendedURL(ctx context.Context) string {
 	state := mustSessionState(ctx)
 
 	return state.take(&state.data.IntendedURL)
+}
+
+func (Session) ConfirmPassword(ctx context.Context, at time.Time) {
+	mustSessionState(ctx).confirmPassword(at)
+}
+
+func (Session) PasswordConfirmedAt(ctx context.Context) time.Time {
+	return currentSessionData(ctx).PasswordConfirmedAt
 }
 
 func currentSessionData(ctx context.Context) sessionData {

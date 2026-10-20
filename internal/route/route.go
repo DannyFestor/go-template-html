@@ -9,6 +9,7 @@ const (
 	ForgotPassword     = "/forgot-password"
 	Register           = "/register"
 	Logout             = "/logout"
+	ConfirmPassword    = "/confirm-password"
 	Dashboard          = "/dashboard"
 	Settings           = "/settings"
 	SettingsProfile    = Settings + "/profile"

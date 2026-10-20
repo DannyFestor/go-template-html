@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/route"
@@ -19,10 +18,13 @@ type credentialFingerprints interface {
 	Matches(hash domain.PasswordHash, fingerprint string) bool
 }
 
+type redirector interface {
+	Redirect(w http.ResponseWriter, r *http.Request, url string)
+}
+
 type authResponder interface {
 	errorRenderer
-
-	Redirect(w http.ResponseWriter, r *http.Request, url string)
+	redirector
 }
 
 type Authenticator struct {
@@ -30,10 +32,17 @@ type Authenticator struct {
 	credentials credentialFingerprints
 	responder   authResponder
 	session     Session
+	intended    intendedURL
 }
 
 func NewAuthenticator(users userFinder, credentials credentialFingerprints, responder authResponder) *Authenticator {
-	return &Authenticator{users: users, credentials: credentials, responder: responder, session: Session{}}
+	return &Authenticator{
+		users:       users,
+		credentials: credentials,
+		responder:   responder,
+		session:     Session{},
+		intended:    intendedURL{session: Session{}},
+	}
 }
 
 func (a *Authenticator) SignIn(ctx context.Context, user domain.User) {
@@ -51,12 +60,7 @@ func (a *Authenticator) SignedIn(ctx context.Context) bool {
 }
 
 func (a *Authenticator) Intended(ctx context.Context) string {
-	intended := a.session.TakeIntendedURL(ctx)
-	if !isLocalPath(intended) {
-		return route.Dashboard
-	}
-
-	return intended
+	return a.intended.take(ctx)
 }
 
 func (a *Authenticator) Require(next http.Handler) http.Handler {
@@ -98,15 +102,8 @@ func (a *Authenticator) RequireGuest(next http.Handler) http.Handler {
 }
 
 func (a *Authenticator) sendToLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		a.session.SetIntendedURL(r.Context(), r.URL.RequestURI())
-	}
-
+	a.intended.store(r)
 	a.responder.Redirect(w, r, route.Login)
-}
-
-func isLocalPath(path string) bool {
-	return strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "//")
 }
 
 func (a *Authenticator) authenticate(ctx context.Context) (domain.User, bool, error) {

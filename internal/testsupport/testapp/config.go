@@ -49,16 +49,14 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		DB:     dbConfig(database),
 		Valkey: valkeyConfig(valkey),
 		Session: bootstrap.Session{
-			IdleLifetime:     sessionLifetime,
-			AbsoluteLifetime: sessionLifetime,
-			RememberLifetime: rememberLifetime,
+			IdleLifetime:                sessionLifetime,
+			AbsoluteLifetime:            sessionLifetime,
+			RememberLifetime:            rememberLifetime,
+			PasswordConfirmationTimeout: sessionLifetime,
 		},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
-		RateLimits: bootstrap.RateLimits{
-			Registration: bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute},
-			Login:        bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute},
-		},
+		RateLimits:      rateLimits(),
 		Queue: bootstrap.Queue{
 			Concurrency:     jobConcurrency,
 			PollInterval:    time.Second,
@@ -67,6 +65,12 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		Mail: unreachableMail(),
 		Log:  bootstrap.Log{Level: slog.LevelInfo},
 	}
+}
+
+func rateLimits() bootstrap.RateLimits {
+	perMinute := bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute}
+
+	return bootstrap.RateLimits{Registration: perMinute, Login: perMinute, PasswordConfirmation: perMinute}
 }
 
 func unreachableMail() bootstrap.Mail {
