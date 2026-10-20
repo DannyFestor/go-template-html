@@ -1,6 +1,9 @@
 package middleware
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type sessionStateKey struct{}
 
@@ -43,6 +46,12 @@ func sessionStateFrom(ctx context.Context) (*sessionState, bool) {
 func (s *sessionState) signIn(userID, credentialFingerprint string) {
 	s.data.UserID = userID
 	s.data.CredentialFingerprint = credentialFingerprint
+	s.renew = true
+	s.changed = true
+}
+
+func (s *sessionState) confirmPassword(at time.Time) {
+	s.data.PasswordConfirmedAt = at
 	s.renew = true
 	s.changed = true
 }

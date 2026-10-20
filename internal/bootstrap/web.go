@@ -20,15 +20,16 @@ import (
 )
 
 type WebApp struct {
-	Mux            *http.ServeMux
-	Jobs           *postgres.JobQueue
-	Users          *postgres.UserStore
-	RememberTokens *postgres.RememberTokenStore
-	Passwords      *argon2id.Hasher
-	Responder      *web.Responder
-	handler        http.Handler
-	pool           *postgres.Pool
-	valkey         *valkey.Client
+	Mux                         *http.ServeMux
+	Jobs                        *postgres.JobQueue
+	Users                       *postgres.UserStore
+	RememberTokens              *postgres.RememberTokenStore
+	Passwords                   *argon2id.Hasher
+	Responder                   *web.Responder
+	RequirePasswordConfirmation func(http.Handler) http.Handler
+	handler                     http.Handler
+	pool                        *postgres.Pool
+	valkey                      *valkey.Client
 }
 
 func RunWeb() int {
@@ -74,15 +75,16 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 	}
 
 	app := &WebApp{
-		Mux:            nil,
-		Jobs:           nil,
-		Users:          nil,
-		RememberTokens: nil,
-		Passwords:      passwords,
-		Responder:      nil,
-		handler:        nil,
-		pool:           nil,
-		valkey:         nil,
+		Mux:                         nil,
+		Jobs:                        nil,
+		Users:                       nil,
+		RememberTokens:              nil,
+		Passwords:                   passwords,
+		Responder:                   nil,
+		RequirePasswordConfirmation: nil,
+		handler:                     nil,
+		pool:                        nil,
+		valkey:                      nil,
 	}
 
 	err = app.connect(ctx, config)
@@ -155,6 +157,7 @@ func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server)
 		return err
 	}
 
+	a.RequirePasswordConfirmation = auth.requirePasswordConfirmation
 	a.Mux = newWebMux(webRoutes{
 		assets:    assets,
 		responder: a.Responder,

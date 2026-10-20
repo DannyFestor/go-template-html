@@ -15,14 +15,16 @@ import (
 )
 
 const (
-	probeFailure    = "/probe/failure"
-	probeRedirect   = "/probe/redirect"
-	probeForm       = "/probe/form"
-	probeFlash      = "/probe/flash"
-	probeLargePage  = "/probe/large-page"
-	probeSecretPage = "/probe/secret-page"
+	probeFailure       = "/probe/failure"
+	probeRedirect      = "/probe/redirect"
+	probeForm          = "/probe/form"
+	probeFlash         = "/probe/flash"
+	probeLargePage     = "/probe/large-page"
+	probeSecretPage    = "/probe/secret-page"
+	probeSensitivePage = "/probe/sensitive-page"
 
-	probeFlashMessage = "Probe flashed."
+	probeFlashMessage    = "Probe flashed."
+	sensitivePageContent = "Sensitive."
 )
 
 var errProbeFailed = errors.New("probe failed")
@@ -36,6 +38,12 @@ func mountProbes(webApp *bootstrap.WebApp) {
 	webApp.Mux.Handle("POST "+probeFlash, responder.Handle(flashingHome(responder)))
 	webApp.Mux.HandleFunc("GET "+probeLargePage, writingTheLargePage)
 	webApp.Mux.HandleFunc("GET "+probeSecretPage, writingTheSecretPage)
+	webApp.Mux.Handle("GET "+probeSensitivePage,
+		webApp.RequirePasswordConfirmation(http.HandlerFunc(writingTheSensitivePage)))
+}
+
+func writingTheSensitivePage(w http.ResponseWriter, _ *http.Request) {
+	_, _ = io.WriteString(w, sensitivePageContent)
 }
 
 func flashingHome(responder *web.Responder) web.HandlerFunc {

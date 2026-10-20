@@ -24,7 +24,7 @@ func (l Login) Validate() validate.Errors {
 	errors := validate.Errors{}
 
 	errors.Check(validate.NotBlank(l.Email), FieldEmail, enterYourEmail)
-	errors.Check(l.Password != "", FieldPassword, "Enter your password.")
+	errors.Check(l.Password != "", FieldPassword, enterYourPassword)
 
 	return errors
 }

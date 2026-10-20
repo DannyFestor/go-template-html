@@ -1,3 +1,6 @@
 package request
 
-const enterYourEmail = "Enter your email address."
+const (
+	enterYourEmail    = "Enter your email address."
+	enterYourPassword = "Enter your password."
+)
