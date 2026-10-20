@@ -20,11 +20,11 @@ func TestNewSecretHas160RandomBits(t *testing.T) {
 func TestURIEncodesTheSecretInBase32ForAuthenticatorApps(t *testing.T) {
 	t.Parallel()
 
-	uri := totp.URI("Go Template & Co", "alice@example.com", seed())
+	uri := totp.URI("Acme Shop & Co", "alice@example.com", seed())
 
 	assert.Equal(t,
-		"otpauth://totp/Go%20Template%20&%20Co:alice@example.com"+
-			"?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Go%20Template%20%26%20Co",
+		"otpauth://totp/Acme%20Shop%20&%20Co:alice@example.com"+
+			"?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Acme%20Shop%20%26%20Co",
 		uri,
 	)
 }

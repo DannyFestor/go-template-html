@@ -190,6 +190,21 @@ playwright-version:
 github-setup: ## Create or update the GitHub repo's main ruleset and merge settings with gh, which needs admin rights
 	scripts/github-setup.sh .github/rulesets/main.json .github/merge-settings.json
 
+.PHONY: rename
+rename: rename-sweep go-mod-tidy generate build-packages rename-verify ## Rename a fresh clone to MODULE=… and NAME="…", which defaults to the slug title-cased
+
+.PHONY: rename-sweep
+rename-sweep:
+	scripts/rename.sh sweep "$(MODULE)" "$(NAME)"
+
+.PHONY: go-mod-tidy
+go-mod-tidy:
+	go mod tidy
+
+.PHONY: rename-verify
+rename-verify:
+	scripts/rename.sh verify
+
 ##@ Services
 
 .PHONY: services
