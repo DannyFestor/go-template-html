@@ -50,11 +50,12 @@ func (d loginDoubles) adaLogsIn() {
 
 func storedAda() domain.User {
 	return domain.User{
-		ID:           "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
-		Name:         "Ada Lovelace",
-		Email:        "ada@example.com",
-		PasswordHash: storedHash,
-		CreatedAt:    time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
+		ID:              "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
+		Name:            "Ada Lovelace",
+		Email:           "ada@example.com",
+		PasswordHash:    storedHash,
+		EmailVerifiedAt: time.Time{},
+		CreatedAt:       time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
 	}
 }
 

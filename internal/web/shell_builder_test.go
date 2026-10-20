@@ -72,11 +72,12 @@ func guest() *fakeCurrentUser {
 func signedIn(name string) *fakeCurrentUser {
 	return &fakeCurrentUser{
 		user: domain.User{
-			ID:           "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
-			Name:         name,
-			Email:        "ada@example.com",
-			PasswordHash: "",
-			CreatedAt:    time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
+			ID:              "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
+			Name:            name,
+			Email:           "ada@example.com",
+			PasswordHash:    "",
+			EmailVerifiedAt: time.Time{},
+			CreatedAt:       time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
 		},
 		signedIn: true,
 	}

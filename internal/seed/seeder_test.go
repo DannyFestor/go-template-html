@@ -8,28 +8,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DannyFestor/go-template-html/internal/action/auth"
 	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/seed"
 )
 
 var errDatabaseDown = errors.New("database down")
 
-type recordingRegister struct {
-	registered []auth.RegisterIn
-	err        error
-}
-
-func (r *recordingRegister) Run(_ context.Context, in auth.RegisterIn) (auth.RegisterOut, error) {
-	r.registered = append(r.registered, in)
-
-	var user domain.User
-
-	return auth.RegisterOut{User: user}, r.err
-}
-
 type recordingUsers struct {
 	created []domain.NewUser
+	err     error
 }
 
 func (r *recordingUsers) Create(_ context.Context, user domain.NewUser) (domain.User, error) {
@@ -37,7 +24,7 @@ func (r *recordingUsers) Create(_ context.Context, user domain.NewUser) (domain.
 
 	var created domain.User
 
-	return created, nil
+	return created, r.err
 }
 
 type plainHasher struct{}
@@ -46,37 +33,40 @@ func (plainHasher) Hash(password string) string {
 	return "hash of " + password
 }
 
-func TestSeedingRegistersTheTestUserAndAddsDummyUsers(t *testing.T) {
+func TestSeedingAddsTheVerifiedTestUserAndDummyUsers(t *testing.T) {
 	t.Parallel()
 
-	register := &recordingRegister{registered: nil, err: nil}
-	users := &recordingUsers{created: nil}
+	users := &recordingUsers{created: nil, err: nil}
 
-	require.NoError(t, seed.New(register, users, plainHasher{}).Run(t.Context()))
+	require.NoError(t, seed.New(users, plainHasher{}).Run(t.Context()))
 
-	assert.Equal(t, []auth.RegisterIn{{Name: "Test User", Email: "test@example.com", Password: "password"}},
-		register.registered)
-	assert.Len(t, users.created, 10)
+	require.Len(t, users.created, 11)
+	assert.Equal(t, domain.NewUser{
+		Name:          "Test User",
+		Email:         "test@example.com",
+		PasswordHash:  "hash of password",
+		EmailVerified: true,
+	}, users.created[0])
 }
 
 func TestSeedingAddsTheSameDummyUsersEveryTime(t *testing.T) {
 	t.Parallel()
 
-	first, second := &recordingUsers{created: nil}, &recordingUsers{created: nil}
+	first, second := &recordingUsers{created: nil, err: nil}, &recordingUsers{created: nil, err: nil}
 
-	require.NoError(t, seed.New(&recordingRegister{registered: nil, err: nil}, first, plainHasher{}).Run(t.Context()))
-	require.NoError(t, seed.New(&recordingRegister{registered: nil, err: nil}, second, plainHasher{}).Run(t.Context()))
+	require.NoError(t, seed.New(first, plainHasher{}).Run(t.Context()))
+	require.NoError(t, seed.New(second, plainHasher{}).Run(t.Context()))
 
 	assert.Equal(t, first.created, second.created)
 }
 
-func TestSeedingStopsWhenTheTestUserCannotBeRegistered(t *testing.T) {
+func TestSeedingStopsWhenTheTestUserCannotBeCreated(t *testing.T) {
 	t.Parallel()
 
-	users := &recordingUsers{created: nil}
+	users := &recordingUsers{created: nil, err: errDatabaseDown}
 
-	err := seed.New(&recordingRegister{registered: nil, err: errDatabaseDown}, users, plainHasher{}).Run(t.Context())
+	err := seed.New(users, plainHasher{}).Run(t.Context())
 
 	require.ErrorIs(t, err, errDatabaseDown)
-	assert.Empty(t, users.created)
+	assert.Len(t, users.created, 1)
 }

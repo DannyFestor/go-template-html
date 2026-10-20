@@ -72,12 +72,51 @@ func newAuthApp() *authApp {
 
 func ada() domain.User {
 	return domain.User{
-		ID:           userID,
-		Name:         "Ada Lovelace",
-		Email:        "ada@example.com",
-		PasswordHash: "hash-1",
-		CreatedAt:    time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
+		ID:              userID,
+		Name:            "Ada Lovelace",
+		Email:           "ada@example.com",
+		PasswordHash:    "hash-1",
+		EmailVerifiedAt: time.Time{},
+		CreatedAt:       time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
 	}
+}
+
+func verifiedAda() domain.User {
+	verified := ada()
+	verified.EmailVerifiedAt = time.Date(2026, 10, 20, 9, 30, 0, 0, time.UTC)
+
+	return verified
+}
+
+func (a *authApp) requestTheVerifiedPage(t *testing.T, target string, cookie *http.Cookie) served {
+	t.Helper()
+
+	guarded := a.authenticator.Require(a.authenticator.RequireVerified(http.HandlerFunc(greetingTheUser)))
+
+	return a.serveAt(t, target, guarded.ServeHTTP, cookie)
+}
+
+func TestAVerifiedUserPassesTheVerifiedGuard(t *testing.T) {
+	t.Parallel()
+
+	app := newAuthApp()
+	app.users.users[userID] = verifiedAda()
+
+	assert.Equal(t, "Hello, Ada Lovelace", app.requestTheVerifiedPage(t, route.Dashboard, app.signIn(t)).body)
+}
+
+func TestAnUnverifiedUserIsSentToTheVerificationNoticeAndBackAfterVerifying(t *testing.T) {
+	t.Parallel()
+
+	app := newAuthApp()
+	cookie := app.signIn(t)
+
+	guarded := app.requestTheVerifiedPage(t, "/dashboard?tab=team", cookie)
+
+	assert.Equal(t, http.StatusSeeOther, guarded.status)
+	assert.Equal(t, []string{route.VerifyEmail}, app.responder.redirects)
+	assert.Empty(t, guarded.body)
+	assert.Equal(t, "/dashboard?tab=team", app.intendedAfterLogin(t, cookie))
 }
 
 func (a *authApp) signIn(t *testing.T) *http.Cookie {

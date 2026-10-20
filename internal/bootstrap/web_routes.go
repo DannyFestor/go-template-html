@@ -37,8 +37,14 @@ func newWebMux(routes webRoutes) *http.ServeMux {
 		routes.auth.requireUser(responder.Handle(routes.auth.confirmPassword.Show)))
 	mux.Handle("POST "+route.ConfirmPassword,
 		routes.auth.requireUser(responder.Handle(routes.auth.confirmPassword.Store)))
+	mux.Handle("GET "+route.VerifyEmail,
+		routes.auth.requireUser(responder.Handle(routes.auth.verificationNotice.Show)))
+	mux.Handle("POST "+route.VerifyEmail,
+		routes.auth.requireUser(responder.Handle(routes.auth.verificationNotice.Store)))
+	mux.Handle("GET "+route.VerifyEmailLink,
+		routes.auth.requireSignedLink(responder.Handle(routes.auth.verifyEmail.Serve)))
 	mux.Handle("GET "+route.Dashboard,
-		routes.auth.requireUser(responder.Handle(dashboardhandler.NewShow(responder).Serve)))
+		routes.auth.requireVerified(responder.Handle(dashboardhandler.NewShow(responder).Serve)))
 	mux.Handle("GET "+route.SettingsAppearance, routes.auth.requireUser(responder.Handle(routes.appearance.Show)))
 	mux.Handle("POST "+route.SettingsAppearance, routes.auth.requireUser(responder.Handle(routes.appearance.Update)))
 

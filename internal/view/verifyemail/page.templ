@@ -1,0 +1,22 @@
+package verifyemail
+
+import (
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view/component"
+)
+
+type Notice struct {
+	Alert string
+}
+
+templ Page(appName string, notice Notice) {
+	@component.AuthSplit(appName, "Verify your email address", "Please verify your email address by clicking on the link we just emailed to you.") {
+		<form method="post" action={ templ.SafeURL(route.VerifyEmail) } class="flex flex-col gap-4">
+			@component.Alert(notice.Alert)
+			@component.Button(component.ButtonProps{Label: "Resend verification email", Type: "submit", FullWidth: true})
+		</form>
+		<form method="post" action={ templ.SafeURL(route.Logout) } class="text-center">
+			<button type="submit" class="text-sm text-zinc-500 underline">Log out</button>
+		</form>
+	}
+}

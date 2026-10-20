@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DannyFestor/go-template-html/internal/action/auth"
 	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/factory"
 )
@@ -16,10 +15,6 @@ const (
 	fakerSeed     = 1
 )
 
-type registrar interface {
-	Run(ctx context.Context, in auth.RegisterIn) (auth.RegisterOut, error)
-}
-
 type userCreator interface {
 	Create(ctx context.Context, user domain.NewUser) (domain.User, error)
 }
@@ -29,16 +24,15 @@ type passwordHasher interface {
 }
 
 type Seeder struct {
-	register registrar
-	factory  *factory.Factory
+	factory *factory.Factory
 }
 
-func New(register registrar, users userCreator, passwords passwordHasher) *Seeder {
-	return &Seeder{register: register, factory: factory.New(users, passwords, fakerSeed)}
+func New(users userCreator, passwords passwordHasher) *Seeder {
+	return &Seeder{factory: factory.New(users, passwords, fakerSeed)}
 }
 
 func (s *Seeder) Run(ctx context.Context) error {
-	_, err := s.register.Run(ctx, auth.RegisterIn{Name: testUserName, Email: testUserEmail, Password: factory.Password})
+	_, err := s.factory.User().WithName(testUserName).WithEmail(testUserEmail).Create(ctx)
 	if err != nil {
 		return fmt.Errorf("seed the test user: %w", err)
 	}

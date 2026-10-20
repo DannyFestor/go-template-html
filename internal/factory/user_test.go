@@ -26,11 +26,12 @@ func (r *recordingUsers) Create(_ context.Context, user domain.NewUser) (domain.
 	r.created = append(r.created, user)
 
 	return domain.User{
-		ID:           "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
-		Name:         user.Name,
-		Email:        user.Email,
-		PasswordHash: user.PasswordHash,
-		CreatedAt:    time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
+		ID:              "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
+		Name:            user.Name,
+		Email:           user.Email,
+		PasswordHash:    user.PasswordHash,
+		EmailVerifiedAt: time.Time{},
+		CreatedAt:       time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
 	}, r.err
 }
 
@@ -89,6 +90,34 @@ func TestWithEmailOverridesTheFakeEmail(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "ada@example.com", user.Email)
+}
+
+func TestAUserHasAVerifiedEmailUnlessAskedOtherwise(t *testing.T) {
+	t.Parallel()
+
+	users := &recordingUsers{created: nil, err: nil}
+	fakes := factory.New(users, &countingHasher{hashed: nil}, seed)
+
+	createUsers(t, fakes, 1)
+	_, err := fakes.User().Unverified().Create(t.Context())
+	require.NoError(t, err)
+
+	require.Len(t, users.created, 2)
+	assert.True(t, users.created[0].EmailVerified, "default")
+	assert.False(t, users.created[1].EmailVerified, "unverified")
+}
+
+func TestWithNameOverridesTheFakeName(t *testing.T) {
+	t.Parallel()
+
+	users := &recordingUsers{created: nil, err: nil}
+
+	user, err := factory.New(users, &countingHasher{hashed: nil}, seed).User().
+		WithName("Ada Lovelace").
+		Create(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, "Ada Lovelace", user.Name)
 }
 
 func TestCreateReportsAFailingStore(t *testing.T) {

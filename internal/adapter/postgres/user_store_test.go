@@ -43,11 +43,12 @@ func TestFindReturnsTheCreatedUser(t *testing.T) {
 
 		user.CreatedAt = createdAt
 		assert.Equal(t, domain.User{
-			ID:           fixedUserID,
-			Name:         "Ada Lovelace",
-			Email:        "Ada@Example.com",
-			PasswordHash: storedHash,
-			CreatedAt:    createdAt,
+			ID:              fixedUserID,
+			Name:            "Ada Lovelace",
+			Email:           "Ada@Example.com",
+			PasswordHash:    storedHash,
+			EmailVerifiedAt: time.Time{},
+			CreatedAt:       createdAt,
 		}, user, name)
 	}
 }
@@ -134,6 +135,43 @@ func TestUpdatePasswordHashReplacesTheStoredHash(t *testing.T) {
 	assert.Equal(t, replacement, found.PasswordHash)
 }
 
+func TestAUserCreatedAsVerifiedIsVerifiedFromItsCreation(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
+	store := postgres.NewUserStore(openTestDatabase(t), fixedIDs{id: fixedUserID}, clockAt(createdAt))
+	verified := ada("ada@example.com")
+	verified.EmailVerified = true
+
+	created, err := store.Create(t.Context(), verified)
+	require.NoError(t, err)
+
+	found, _, err := store.Find(t.Context(), created.ID)
+	require.NoError(t, err)
+
+	for name, user := range map[string]domain.User{"created": created, "found": found} {
+		assert.True(t, user.Verified(), name)
+		assert.WithinDuration(t, createdAt, user.EmailVerifiedAt, 0, name)
+	}
+}
+
+func TestMarkEmailVerifiedStampsTheFirstVerificationOnly(t *testing.T) {
+	t.Parallel()
+
+	firstVerification := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	pool := openTestDatabase(t)
+	store := newUserStore(pool)
+	user := createUser(t, pool)
+
+	require.NoError(t, store.MarkEmailVerified(t.Context(), user, firstVerification))
+	require.NoError(t, store.MarkEmailVerified(t.Context(), user, firstVerification.Add(time.Hour)))
+
+	found, _, err := store.Find(t.Context(), user)
+	require.NoError(t, err)
+	assert.True(t, found.Verified())
+	assert.WithinDuration(t, firstVerification, found.EmailVerifiedAt, 0)
+}
+
 func ada(email string) domain.NewUser {
-	return domain.NewUser{Name: "Ada Lovelace", Email: email, PasswordHash: storedHash}
+	return domain.NewUser{Name: "Ada Lovelace", Email: email, PasswordHash: storedHash, EmailVerified: false}
 }
