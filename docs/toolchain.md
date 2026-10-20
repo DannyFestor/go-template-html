@@ -96,7 +96,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - A component may not import its own subpackages unless it lists itself in `mayDependOn`. A black-box `_test` package imports the package it tests, so every component with tests lists itself.
 - A vendor glob ending in `/**` does not match the module's root package, so a library imported at its root, such as godotenv, is listed by its bare path.
 - `ignoreNotFoundComponents` is on, so components can be declared before their packages exist.
-- It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` and `node_modules/` directories are excluded, because some npm packages ship Go files.
+- It reads `_test.go` files like any other file, so test-only libraries are allowed everywhere here and kept out of non-test code by depguard. `testdata/` and `node_modules/` directories are excluded, because some npm packages ship Go files, and so is `.claude/worktrees/`, because each agent worktree nested there runs its own check.
 - deepScan is off ([ADR-0007](adr/0007-architecture-enforced-by-go-arch-lint-depguard-and-ast-tests.md)). Turning it back on needs a `golang.org/x/tools` newer than the v0.49 go-arch-lint v1.19.0 requires: that version cannot read Go 1.27 export data, and deepScan then silently checks nothing.
 
 ## Architecture tests
@@ -278,7 +278,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - A passing test's database is dropped. A failing test's database is kept, and its name is logged. `make test-db-clean` drops the kept clones and every template.
 - `testvalkey.New(t)` gives each test its own random `VALKEY_KEY_PREFIX` on the Compose Valkey. Its keys are not deleted afterwards. They expire with their idle lifetime.
 - `testmailpit.New(t)` points the SMTP adapter at the Compose Mailpit, and `MessageTo(t, recipient)` reads a mail back through Mailpit's HTTP API. Mailpit keeps the mail of every run, so each test sends to its own `testmailpit.NewRecipient()`.
-- Tests never read `.env`. The Make targets pass the `DB_` values, `VALKEY_HOST`, `VALKEY_PORT`, `MAIL_HOST`, `MAIL_PORT` and `MAILPIT_UI_PORT` from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and `internal/testsupport/testenv` names every one that is missing.
+- Tests never read `.env`. The Make targets pass the `DB_` values, `VALKEY_HOST`, `VALKEY_PORT`, `MAIL_HOST`, `MAIL_PORT` and `MAILPIT_UI_PORT` from `.env`, or the Compose defaults, to the test process. `DB_NAME` gets the value of `TEST_DB_NAME`, which defaults to `DB_NAME` and which `make worktree-setup` sets per [worktree](#worktrees), because a template built from another checkout's migrations counts as stale and is dropped. Running `go test -tags integration` by hand needs them set, and `internal/testsupport/testenv` names every one that is missing.
 - `testdb.Unreachable(t)` and `testvalkey.Unreachable(t)` point at a closed loopback port, for testing behaviour while Postgres or Valkey is down.
 
 ## Feature tests
@@ -349,6 +349,8 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - It skips the generated `*_templ.go` files and the test harness in `internal/testsupport/`.
 - Its default timeout scales from a coverage run that hits the build cache, while each mutant rebuilds its package, so most mutants timed out. `--timeout-coefficient 10` gives them room.
 - There is no threshold, because gremlins counts a mutant that does not compile as killed.
+- Without a path argument it also mutates `tools/agenthook`, a module of its own, so the target passes `./internal`.
+- `--exclude-files` regexes match paths relative to that argument: `^testsupport/`, not `^internal/testsupport/`.
 
 ## shellcheck
 
@@ -399,6 +401,19 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - templ opens the proxy in the browser at startup.
 - The output of the watchers is interleaved, because Make 3.81 has no `--output-sync`.
 - Ctrl-C stops every watcher. The containers keep running until `make down`.
+
+## Worktrees
+
+| | |
+| --- | --- |
+| Version | git's linked worktrees |
+| Role | `make worktree-setup` prepares a linked worktree, such as an agent's under `.claude/worktrees/`, through `scripts/worktree-env.sh`: it copies the main checkout's `.env`, appends a `TEST_DB_NAME` of the worktree's own, then runs `make js-install` and `make vite-build`. |
+
+- A new worktree has no `.env`, `node_modules/` or `internal/asset/dist/`, since all three are gitignored. Without a `.env`, Make falls back to the Compose defaults, such as `DB_PORT=5432`, which can be another project's Postgres.
+- `TEST_DB_NAME` is `<DB_NAME>_wt_` plus the first 6 hex digits of the git hash of the worktree's path, so worktrees with different migrations never drop each other's [test templates](#integration-tests). A clone adds 29 characters to it and Postgres truncates names past 63, so it suits a `DB_NAME` of up to 24.
+- The script refuses in the main checkout, when the worktree already has a `.env`, and when the main checkout has none.
+- `compose.yaml` fixes the Compose project name, so every checkout shares one set of containers, and `make services` in any of them starts the same services.
+- `.gitignore` keeps `.claude/worktrees/` out of the main checkout's status.
 
 ## cog
 
@@ -564,6 +579,7 @@ pre-commit and pre-push are piped: the first failing job stops the rest. No hook
 - The adapter in `internal/claude` is the only one, and the rules in `internal/hook` know nothing about Claude Code. Every decision goes out as Claude Code's JSON with exit status 0, so a non-zero status only means the hook broke. `settings.json` turns any failure into exit 1, which Claude Code reports without blocking, so a `bin/agenthook` that no longer builds cannot block the edit that fixes it.
 - Every rule judges the checkout of the edited path, or of the directory a command runs in after its `cd`s and `git -C`s, never the hook's working directory. A linked worktree gets the checks of its own Makefile and module.
 - Session state (edited paths, comments already denied, the gate's counters) lives in `$(git rev-parse --git-dir)/agenthook/<session id>.json`, so linked worktrees and parallel sessions never share it. The end-of-turn gate reads this session's state from every worktree of the repository.
+- Claude Code runs a subagent's hooks under its parent's session ID, and `.claude/settings.json` gates only `Stop`, which fires for the main agent alone. A session that delegates to subagents therefore shares one state with them: its end-of-turn gate checks every file they edited, in their worktrees too, unfinished work included, while their own turns end without a gate.
 - go-arch-lint checks the whole root module and cannot be limited to packages, so the gate runs `make arch-json` and keeps only the warnings on this session's files. Two sessions editing different Go packages in one checkout never fail each other's gate. `typecheck-js` and `test-js` cover the whole frontend, so a session that touched TypeScript also sees another session's TypeScript failures.
 - The gate records the edits it let through, after a pass or a release, and stays quiet until they change.
 - The comment guard lexes rather than parses, so it works on fragments. A line comment marker inside a word, as in `https://` or `${#x}`, does not start a comment, and templ treats only `"` and `` ` `` as string quotes, because its HTML text is full of apostrophes.

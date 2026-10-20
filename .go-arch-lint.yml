@@ -14,6 +14,8 @@ excludeFiles:
   - "/node_modules/"
   # The agent hooks are a module of their own, linted and tested on their own.
   - "/tools/agenthook/"
+  # Agent worktrees nest inside the checkout, and each one runs its own check.
+  - "/\\.claude/worktrees/"
 
 vendors:
   templ:
