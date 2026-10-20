@@ -42,7 +42,12 @@ func newFlashingResponder(reporter *spyReporter, showErrorDetails bool, flashes 
 		err:         nil,
 	}
 
-	return web.NewResponder(web.NewShellBuilder("Acme Shop", assets, flashes), flashes, reporter, showErrorDetails)
+	return web.NewResponder(
+		web.NewShellBuilder("Acme Shop", assets, flashes, guest()),
+		flashes,
+		reporter,
+		showErrorDetails,
+	)
 }
 
 func newRequest(t *testing.T, headers map[string]string) *http.Request {

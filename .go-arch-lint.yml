@@ -46,7 +46,9 @@ vendors:
       - github.com/joho/godotenv
       - github.com/caarlos0/env/**
   gofakeit:
-    in: github.com/brianvoe/gofakeit/v7/**
+    in:
+      - github.com/brianvoe/gofakeit/v7
+      - github.com/brianvoe/gofakeit/v7/**
   # depguard keeps it out of non-test files.
   testify:
     in: github.com/stretchr/testify/**
@@ -171,6 +173,7 @@ deps:
       - validate
   validate:
     mayDependOn:
+      - validate
       - domain
   handler:
     mayDependOn:
@@ -280,11 +283,13 @@ deps:
       - migrationsum
   seed:
     mayDependOn:
+      - seed
       - domain
       - action
       - factory
   factory:
     mayDependOn:
+      - factory
       - domain
       - adapter-postgres
     canUse:

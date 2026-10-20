@@ -126,6 +126,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `make migrate-fresh` drops `DB_SCHEMA` with all its data through `docker compose exec postgres psql`, recreates it and migrates. It only reaches the Compose Postgres, so it can't run in production.
 - `migrations/migrations.sum` has the shape of Atlas's `atlas.sum`: a total hash, then one hash per `.sql` file. `internal/migrationsum` computes and verifies it, and `//go:generate` in `migrations/embed.go` rewrites it, through `make generate` or `make generate-migrations-sum`. A test in `migrations/` fails when it is stale or a migration has a `-- +goose Down` section. Two branches that each add a migration conflict on its first line.
 - goose stores no checksum, so the sum guards the repo and the binary, not a database an older build already migrated. CI's `make migrations-unchanged` fails when a migration that is already on `origin/main` was modified, renamed or deleted.
+- `users.email` is `citext`, whose extension the `users` migration enables, so uniqueness ignores case while the address is stored as typed. `postgres.UserStore.Create` returns `domain.ErrEmailTaken` for a taken address.
 - `migrations/00001_create_public_schema.sql` holds only `CREATE SCHEMA IF NOT EXISTS public`. It exists because `//go:embed *.sql` doesn't compile without a match, and goose refuses an empty set. The first real migration follows it.
 
 ## sqlc
@@ -188,11 +189,12 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - A session's token comes from `crypto/rand.Text` and travels in the cookie. Valkey stores the session under the token's SHA-256, so a key read out of Valkey can't be replayed as a cookie. The value is the JSON of one typed struct, whose fields all live in `internal/middleware/session_data.go`.
 - A session is written only when a request changed it. Loading it with `GETEX` restarts its idle lifetime (`SESSION_IDLE_LIFETIME`, default `2h`), so a session in use needs no write to stay alive. Its absolute deadline (`SESSION_ABSOLUTE_LIFETIME`, default `24h`) is stored in the struct and set whenever a new token is minted. Concurrent requests are last-write-wins.
 - Handlers reach the session through `middleware.Session`, behind interfaces they declare themselves. `SignIn` stores the user ID and credential fingerprint under a new token, `SignOut` deletes the session and clears the cookie, `CurrentUserID` and `CredentialFingerprint` read them, and `SetFlash` and `TakeFlash` carry the flash. A request that never writes the session gets no cookie and costs no Valkey write.
+- Handlers sign a user in through `middleware.Authenticator.SignIn`, which stores the hex HMAC-SHA256 of the user's password hash, on the `credential-fingerprint` subkey, as the credential fingerprint (`internal/adapter/fingerprint`). `Authenticator.Require` is the `auth` middleware: it loads the session's user and hands it on, where `middleware.AuthenticatedUser{}.CurrentUser(ctx)` reads it and the app layout's user menu shows it. A guest is redirected to `/login`, and a session whose user is gone or whose fingerprint no longer matches the stored password hash is signed out first. `Authenticator.RequireGuest` is the `guest` middleware, which sends a signed-in user to `/dashboard`.
 - The cookie is `session`, `HttpOnly`, `SameSite=Lax`, `Path=/`, with no `Domain` and no `Max-Age`, so it ends with the browser session. When `APP_URL` is https it is `__Host-session` and `Secure`.
 - A cookie whose session is gone or past its absolute deadline makes the request delete what is left of the session and clear the cookie.
 - The session is saved on the response's first byte, flush, header or hijack, because the cookie can't be set later. If loading or saving fails, the request gets the reported 500 page in place of its response. The writer wrapper keeps `Flush`, `Hijack` and `Unwrap`.
 - `Responder.RedirectWithStatus` sets the flash and redirects. The next full page takes it into `Shell.Status`, and each layout renders it with `component.Status` as the first child of its `<main>`, so boosted navigation shows it too. Partial responses leave it for the next full page.
-- The rate limiter counts attempts in a fixed window per key. One `MULTI` runs `SET key 0 NX PX <window>`, `INCR` and `PTTL`, so the window starts with its first attempt, refused attempts don't extend it, and no counter is left without an expiry. Up to twice the limit can pass across a window edge. A handler holds one `web.RateLimit` per limit, whose `web.Limit` names it, so flows keyed by the same value count apart. `Hit` returns nil, the 429 `StatusError` with the wait until the window ends, or, when Valkey can't count, a reported 503: the limiter fails closed. `Responder.RateLimited` re-renders a form with the 429 and `Retry-After`, and hands any other error back for its error page.
+- The rate limiter counts attempts in a fixed window per key. One `MULTI` runs `SET key 0 NX PX <window>`, `INCR` and `PTTL`, so the window starts with its first attempt, refused attempts don't extend it, and no counter is left without an expiry. Up to twice the limit can pass across a window edge. A handler holds one `web.RateLimit` per limit, whose `web.Limit` names it, so flows keyed by the same value count apart. `Hit` returns nil, the 429 `StatusError` with the wait until the window ends, or, when Valkey can't count, a reported 503: the limiter fails closed. `Responder.RateLimited` re-renders a form with the 429 and `Retry-After`, and hands any other error back for its error page. Each flow's limit is one `RATE_LIMIT_<FLOW>` setting of attempts per window, such as `RATE_LIMIT_REGISTRATION=5/1m` (the default), which counts every registration attempt per client IP.
 - `http.CrossOriginProtection` rejects cross-origin requests with an unsafe method, such as `POST`, `PUT`, `PATCH` or `DELETE`, by `Sec-Fetch-Site` or by comparing `Origin` with `Host`, with the 403 page. `CSRF_TRUSTED_ORIGINS` (comma-separated, default none) lists origins to let through, for proxies that rewrite `Host`. There's no synchronizer token.
 - The client IP is `RemoteAddr`. When the peer is in `TRUSTED_PROXIES` (comma-separated CIDRs, default none), it is the rightmost `X-Forwarded-For` entry outside them. `middleware.ClientIPFrom(ctx)` reads it.
 - Every response carries a strict `Content-Security-Policy` (`script-src 'self'`, `style-src 'self'`, no inline code), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin` and a `Permissions-Policy` that turns off camera, microphone, geolocation, payment and USB. `Strict-Transport-Security: max-age=31536000` is added only when `APP_URL` is https, without `includeSubDomains` or `preload`, so the template commits no other subdomain. htmx 4 adds its indicator CSS as a constructable stylesheet, which `style-src 'self'` doesn't block, so its config stays as it is.
@@ -236,7 +238,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `recoverycode.NewSet` returns 8 codes shaped `XXXXXXXXXX-XXXXXXXXXX`, each 20 characters of `crypto/rand.Text`'s base32 alphabet.
 - `recovery_codes` holds one row per code: the code encrypted, so settings can show it again, and its HMAC-SHA256 digest. `RecoveryCodeStore.Consume` deletes the row matching the digest and reports whether there was one, so a code works once.
 - The stores take the `aesgcm.Encrypter` and `hmacdigest.Digester` as interfaces. Bootstrap builds them on the `totp-secret`, `recovery-code` and `recovery-code-digest` subkeys once a flow uses the stores.
-- Neither table has a foreign key yet, since `users` doesn't exist. The migration that creates `users` adds one to each, with `ON DELETE CASCADE`.
+- Both tables reference `users` with `ON DELETE CASCADE`, so deleting a user deletes its secret and recovery codes.
 
 ## Response compression
 
@@ -291,6 +293,19 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
 - goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` and in `web`, whose tests parse the rendered pages.
+
+## Factories and seeding
+
+| | |
+| --- | --- |
+| Version | gofakeit `github.com/brianvoe/gofakeit/v7` in the main `go.mod` ([upgrading.md](upgrading.md#gofakeit)) |
+| Role | `internal/factory` creates records with fake data through the stores, for the tests and for `make seed`, which runs `cmd/seed` ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). |
+
+- `factory.New(users, passwords, seed)` takes the user store and the password hasher, which feature tests reach as `Users` and `Passwords` on the app from `testapp.New`. `f.User().WithEmail(…).Create(ctx)` returns `(domain.User, error)`. Every factory user has the password `factory.Password`, hashed once per factory.
+- Tests unwrap such a call with `testsupport.Must(call)(t)`, which fails the test on the error. The test comes last because Go hands a call's two results on only as a whole argument list.
+- The same seed gives the same fake data, so `make migrate-fresh seed` is reproducible.
+- `make seed` registers the test user `test@example.com` with the password `password` through the register action, then adds 10 dummy users through the factory. It refuses a schema that already holds the test user, so run `make migrate-fresh seed` to start over.
+- Only `internal/factory` imports gofakeit. go-arch-lint allows `factory` in `internal/seed` and the feature and e2e tests only. `cmd/seed` is not in the production image.
 
 ## E2E tests
 

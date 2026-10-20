@@ -17,12 +17,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
+	"github.com/DannyFestor/go-template-html/internal/factory"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testapp"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
 )
 
-const appName = "Feature Test App"
+const (
+	appName     = "Feature Test App"
+	factorySeed = 1
+)
 
 type app struct {
 	*testapp.App
@@ -141,6 +145,10 @@ func (a *app) send(t *testing.T, out outgoing) response {
 		closesConnection: received.Close,
 		body:             body,
 	}
+}
+
+func (a *app) factory() *factory.Factory {
+	return factory.New(a.Users, a.Passwords, factorySeed)
 }
 
 func (a *app) page(t *testing.T, path string) *goquery.Document {

@@ -1,0 +1,37 @@
+package component
+
+type FieldProps struct {
+	Label        string
+	Name         string
+	Type         string
+	Value        string
+	Placeholder  string
+	Autocomplete string
+	Error        string
+}
+
+templ Field(f FieldProps) {
+	<div class="flex flex-col gap-1.5">
+		<label for={ f.Name } class="text-sm font-medium">{ f.Label }</label>
+		<input
+			id={ f.Name }
+			name={ f.Name }
+			type={ f.Type }
+			value={ f.Value }
+			placeholder={ f.Placeholder }
+			autocomplete={ f.Autocomplete }
+			if f.Error != "" {
+				aria-invalid="true"
+				aria-describedby={ fieldErrorID(f.Name) }
+			}
+			class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-900"
+		/>
+		if f.Error != "" {
+			<p id={ fieldErrorID(f.Name) } class="text-sm text-red-600 dark:text-red-400">{ f.Error }</p>
+		}
+	</div>
+}
+
+func fieldErrorID(name string) string {
+	return name + "-error"
+}

@@ -8,12 +8,13 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/argon2id"
 	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
 	"github.com/DannyFestor/go-template-html/internal/adapter/postgres"
 	"github.com/DannyFestor/go-template-html/internal/adapter/valkey"
 	"github.com/DannyFestor/go-template-html/internal/asset"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
-	"github.com/DannyFestor/go-template-html/internal/handler/health"
+	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
@@ -21,6 +22,8 @@ import (
 type WebApp struct {
 	Mux       *http.ServeMux
 	Jobs      *postgres.JobQueue
+	Users     *postgres.UserStore
+	Passwords *argon2id.Hasher
 	Responder *web.Responder
 	handler   http.Handler
 	pool      *postgres.Pool
@@ -64,7 +67,21 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		return nil, err
 	}
 
-	app := &WebApp{Mux: nil, Jobs: nil, Responder: nil, handler: nil, pool: nil, valkey: nil}
+	passwords, err := newPasswordHasher(config.PasswordHashing)
+	if err != nil {
+		return nil, err
+	}
+
+	app := &WebApp{
+		Mux:       nil,
+		Jobs:      nil,
+		Users:     nil,
+		Passwords: passwords,
+		Responder: nil,
+		handler:   nil,
+		pool:      nil,
+		valkey:    nil,
+	}
 
 	err = app.connect(ctx, config)
 	if err != nil {
@@ -109,6 +126,7 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 
 	a.pool = pool
 	a.Jobs = newJobQueue(pool)
+	a.Users = newUserStore(pool)
 
 	client, err := valkey.Open(valkeyConfig(config.Valkey))
 	if err != nil {
@@ -123,17 +141,27 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server) error {
 	session := middleware.Session{}
 	a.Responder = web.NewResponder(
-		web.NewShellBuilder(config.App.Name, assets, session),
+		web.NewShellBuilder(config.App.Name, assets, session, middleware.AuthenticatedUser{}),
 		session,
 		logreport.New(logger),
 		config.App.Env == EnvironmentLocal,
 	)
+
+	auth, err := a.newAuthRoutes(config)
+	if err != nil {
+		return err
+	}
+
 	a.Mux = newWebMux(webRoutes{
 		assets:    assets,
 		responder: a.Responder,
-		readiness: health.NewReadiness(
-			health.NewCachedPing(health.NewDependencies(a.pool, a.valkey), config.HTTP.ReadinessCacheTTL),
+		readiness: healthhandler.NewReadiness(
+			healthhandler.NewCachedPing(
+				healthhandler.NewDependencies(a.pool, a.valkey),
+				config.HTTP.ReadinessCacheTTL,
+			),
 		),
+		auth: auth,
 	})
 
 	chain, err := webMiddleware(webMiddlewareDeps{

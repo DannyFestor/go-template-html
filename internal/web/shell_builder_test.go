@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/view"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
@@ -45,17 +47,58 @@ func (f *fakeFlashes) TakeFlash(context.Context) string {
 	return message
 }
 
-func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsAndTheFlash(t *testing.T) {
-	t.Parallel()
+type fakeCurrentUser struct {
+	user     domain.User
+	signedIn bool
+}
 
-	assets := fakeAssets{
+func (f *fakeCurrentUser) CurrentUser(context.Context) (domain.User, bool) {
+	return f.user, f.signedIn
+}
+
+func guest() *fakeCurrentUser {
+	var nobody domain.User
+
+	return &fakeCurrentUser{user: nobody, signedIn: false}
+}
+
+func signedIn(name string) *fakeCurrentUser {
+	return &fakeCurrentUser{
+		user: domain.User{
+			ID:           "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
+			Name:         name,
+			Email:        "ada@example.com",
+			PasswordHash: "",
+			CreatedAt:    time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC),
+		},
+		signedIn: true,
+	}
+}
+
+func resolvedAssets() fakeAssets {
+	return fakeAssets{
 		scripts:     map[string]string{appEntry: "/assets/app-nx4752wa.js"},
 		stylesheets: map[string][]string{appEntry: {"/assets/app-fimgy6vt.css"}},
 		err:         nil,
 	}
+}
+
+func buildShellFor(t *testing.T, users *fakeCurrentUser) view.Shell {
+	t.Helper()
+
+	shell, err := web.NewShellBuilder("Acme Shop", resolvedAssets(), &fakeFlashes{message: ""}, users).
+		Build(t.Context())
+	require.NoError(t, err)
+
+	return shell
+}
+
+func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsAndTheFlash(t *testing.T) {
+	t.Parallel()
+
 	flashes := &fakeFlashes{message: "Profile saved."}
 
-	shell, err := web.NewShellBuilder("Acme Shop", assets, flashes).Build(t.Context())
+	shell, err := web.NewShellBuilder("Acme Shop", resolvedAssets(), flashes, guest()).Build(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, view.Shell{
@@ -68,12 +111,35 @@ func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsAndTheFlash(t *testin
 	assert.Empty(t, flashes.message, "the flash is still pending")
 }
 
+func TestBuildShowsTheSignedInUser(t *testing.T) {
+	t.Parallel()
+
+	shell := buildShellFor(t, signedIn("Ada Lovelace"))
+
+	assert.Equal(t, view.ShellUser{Name: "Ada Lovelace", Email: "ada@example.com", Initials: "AL"}, shell.User)
+}
+
+func TestBuildTakesTheInitialsOfTheFirstTwoWordsOfTheName(t *testing.T) {
+	t.Parallel()
+
+	for name, initials := range map[string]string{
+		"Ada Lovelace":          "AL",
+		"ada":                   "A",
+		"  grace   brewster  ":  "GB",
+		"Augusta Ada King-Noel": "AA",
+		"Émilie du Châtelet":    "ÉD",
+		" Ada Byron  ":          "AB",
+	} {
+		assert.Equal(t, initials, buildShellFor(t, signedIn(name)).User.Initials, name)
+	}
+}
+
 func TestBuildFailsWhenTheAssetsCannotBeResolved(t *testing.T) {
 	t.Parallel()
 
 	assets := fakeAssets{scripts: nil, stylesheets: nil, err: errManifestMissing}
 
-	_, err := web.NewShellBuilder("Acme Shop", assets, &fakeFlashes{message: ""}).Build(t.Context())
+	_, err := web.NewShellBuilder("Acme Shop", assets, &fakeFlashes{message: ""}, guest()).Build(t.Context())
 
 	assert.ErrorIs(t, err, errManifestMissing)
 }

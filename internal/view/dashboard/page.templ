@@ -1,0 +1,13 @@
+package dashboard
+
+const placeholderTiles = 3
+
+templ Page() {
+	<h1 class="mb-6 text-xl font-semibold">Dashboard</h1>
+	<div class="grid gap-4 md:grid-cols-3">
+		for range placeholderTiles {
+			<div class="aspect-video rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700"></div>
+		}
+	</div>
+	<div class="mt-4 h-96 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700"></div>
+}

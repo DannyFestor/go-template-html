@@ -15,6 +15,7 @@ import (
 
 const (
 	MaxBodyBytes            = 1 << 20
+	RateLimitAttempts       = 5
 	maxConnsPerServer       = 4
 	jobConcurrency          = 1
 	statementTimeout        = 5 * time.Second
@@ -49,6 +50,9 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		Session:         bootstrap.Session{IdleLifetime: sessionLifetime, AbsoluteLifetime: sessionLifetime},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour},
+		RateLimits: bootstrap.RateLimits{
+			Registration: bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute},
+		},
 		Queue: bootstrap.Queue{
 			Concurrency:     jobConcurrency,
 			PollInterval:    time.Second,

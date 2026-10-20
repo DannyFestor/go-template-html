@@ -7,6 +7,7 @@ toolchain go1.27.2
 require (
 	github.com/PuerkitoBio/goquery v1.13.0
 	github.com/a-h/templ v0.3.1070
+	github.com/brianvoe/gofakeit/v7 v7.18.0
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1

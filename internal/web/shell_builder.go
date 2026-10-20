@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/view"
 )
 
@@ -18,14 +19,19 @@ type flashTaker interface {
 	TakeFlash(ctx context.Context) string
 }
 
+type currentUser interface {
+	CurrentUser(ctx context.Context) (domain.User, bool)
+}
+
 type ShellBuilder struct {
 	appName string
 	assets  assetURLs
 	flashes flashTaker
+	users   currentUser
 }
 
-func NewShellBuilder(appName string, assets assetURLs, flashes flashTaker) *ShellBuilder {
-	return &ShellBuilder{appName: appName, assets: assets, flashes: flashes}
+func NewShellBuilder(appName string, assets assetURLs, flashes flashTaker, users currentUser) *ShellBuilder {
+	return &ShellBuilder{appName: appName, assets: assets, flashes: flashes, users: users}
 }
 
 func (b *ShellBuilder) Build(ctx context.Context) (view.Shell, error) {
@@ -43,7 +49,16 @@ func (b *ShellBuilder) Build(ctx context.Context) (view.Shell, error) {
 		AppName:     b.appName,
 		Script:      script,
 		Stylesheets: stylesheets,
-		User:        view.ShellUser{Name: "", Email: "", Initials: ""},
+		User:        b.shellUser(ctx),
 		Status:      b.flashes.TakeFlash(ctx),
 	}, nil
+}
+
+func (b *ShellBuilder) shellUser(ctx context.Context) view.ShellUser {
+	user, signedIn := b.users.CurrentUser(ctx)
+	if !signedIn {
+		return view.ShellUser{Name: "", Email: "", Initials: ""}
+	}
+
+	return view.ShellUser{Name: user.Name, Email: user.Email, Initials: initials(user.Name)}
 }

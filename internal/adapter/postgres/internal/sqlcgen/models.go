@@ -35,3 +35,11 @@ type TwoFactorSecret struct {
 	EncryptedSecret []byte
 	LastUsedStep    int64
 }
+
+type User struct {
+	ID        uuid.UUID
+	Name      string
+	Email     string
+	Password  string
+	CreatedAt time.Time
+}
