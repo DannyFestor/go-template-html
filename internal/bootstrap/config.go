@@ -9,5 +9,6 @@ type Config struct {
 	PasswordHashing PasswordHashing
 	SignedURL       SignedURL
 	Queue           Queue
+	Mail            Mail
 	Log             Log
 }

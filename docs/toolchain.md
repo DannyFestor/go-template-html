@@ -160,6 +160,22 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `WORKER_DB_MAX_CONNS` (default `12`) sizes the worker's pool, which has no `statement_timeout` because the lease bounds a job. Startup fails when it is below `QUEUE_CONCURRENCY + 2`.
 - Feature and e2e tests call `RunQueuedJobs(t)` on the app from `testapp.New`, which runs every due job synchronously on the test's database.
 
+## Mail
+
+| | |
+| --- | --- |
+| Version | stdlib `net/smtp`, `mime/multipart`, `mime/quotedprintable` and `text/template`, with templ for the HTML part |
+| Role | `mailjob.Mailer[M]` (`internal/job/mail`) renders a typed mail and queues it as a `SendMail` job (kind `send_mail`). The worker sends it through `smtp.Sender` (`internal/adapter/smtp`), which points at the Compose Mailpit in dev. |
+
+- An action sends a mail through an interface it declares with `Send(ctx context.Context, mail M) error`, where `M` is the typed mail. Bootstrap is to wire one `mailjob.NewMailer(compose, jobQueue)` per mail type (none ships yet: the verification and reset mails arrive with their flows), whose `compose` maps the mail to a `mailjob.Content`: recipient, subject, a templ component for the HTML part and one for the text part.
+- The mail is rendered when it is queued, so the job's payload is the finished message (`domain.MailMessage`: to, subject, HTML, text) and the TTL of a signed URL in it starts at send time. The enqueue joins the transaction in `ctx`, like every job.
+- HTML parts wrap their body in `mail.Layout(subject, body)` from `internal/view/mail`. Text parts are stdlib `text/template`s, turned into a component by `mail.Text(template, model)`, so they are not HTML-escaped.
+- The message is `multipart/alternative`, text part first, both parts UTF-8 and quoted-printable. The From name is `APP_NAME` and the From address `MAIL_FROM_ADDRESS` (default `hello@example.com`). The subject and From name are Q-encoded, and the `Date` header comes from the clock.
+- The `MAIL_` values build the sender: `MAIL_HOST` (default `localhost`), `MAIL_PORT` (default `1025`), `MAIL_USERNAME` and `MAIL_PASSWORD` (default none, which skips `AUTH`) and `MAIL_ENCRYPTION`: `none` (default), `starttls`, which fails when the server offers no STARTTLS rather than sending in plaintext, or `tls` for implicit TLS. `AUTH PLAIN` needs TLS unless the host is `localhost`.
+- `net/smtp` takes no `ctx`, so the sender closes the connection when the job's `ctx` ends, at shutdown or when the lease runs out.
+- Delivery is at-least-once like every job, so a mail whose job is rescued may arrive twice.
+- `testapp.New` gives the worker a `testapp.Outbox` instead of the SMTP sender, so feature and e2e tests read the sent messages from `Outbox.Sent()` after `RunQueuedJobs(t)`.
+
 ## Valkey, sessions and request security
 
 | | |
@@ -252,14 +268,15 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 
 | | |
 | --- | --- |
-| Version | `internal/testsupport/testdb`, on pgx, and `internal/testsupport/testvalkey` |
-| Role | Run the adapters against the Compose Postgres and Valkey, tagged `integration` next to the code (`make test-integration`, over `./internal/...`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, after `make services`. |
+| Version | `internal/testsupport/testdb`, on pgx, `internal/testsupport/testvalkey` and `internal/testsupport/testmailpit` |
+| Role | Run the adapters against the Compose Postgres, Valkey and Mailpit, tagged `integration` next to the code (`make test-integration`, over `./internal/...`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job, after `make services`. |
 
 - `testdb.New(t)` gives each test its own database, cloned with `CREATE DATABASE <DB_NAME>_t_<random> TEMPLATE <DB_NAME>_tpl_<hash>`, so every test calls `t.Parallel()`. The hash is the first 16 hex digits of the migrations' total hash.
 - The first test process to need a template builds it under an advisory lock in the `postgres` maintenance database. It migrates it under a `_building` name and renames it when done, so a run that dies halfway leaves no template that looks complete. Templates are kept between runs, and building a new one drops the stale ones.
 - A passing test's database is dropped. A failing test's database is kept, and its name is logged. `make test-db-clean` drops the kept clones and every template.
 - `testvalkey.New(t)` gives each test its own random `VALKEY_KEY_PREFIX` on the Compose Valkey. Its keys are not deleted afterwards. They expire with their idle lifetime.
-- Tests never read `.env`. The Make targets pass the `DB_` values, `VALKEY_HOST` and `VALKEY_PORT` from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and `internal/testsupport/testenv` names every one that is missing.
+- `testmailpit.New(t)` points the SMTP adapter at the Compose Mailpit, and `MessageTo(t, recipient)` reads a mail back through Mailpit's HTTP API. Mailpit keeps the mail of every run, so each test sends to its own `testmailpit.NewRecipient()`.
+- Tests never read `.env`. The Make targets pass the `DB_` values, `VALKEY_HOST`, `VALKEY_PORT`, `MAIL_HOST`, `MAIL_PORT` and `MAILPIT_UI_PORT` from `.env`, or the Compose defaults, to the test process. Running `go test -tags integration` by hand needs them set, and `internal/testsupport/testenv` names every one that is missing.
 - `testdb.Unreachable(t)` and `testvalkey.Unreachable(t)` point at a closed loopback port, for testing behaviour while Postgres or Valkey is down.
 
 ## Feature tests
@@ -270,7 +287,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 | Role | Exercise the app through real HTTP requests in `tests/feature/`, tagged `feature` (`make test-feature`) ([ADR-0011](adr/0011-test-kinds-by-build-tag-and-a-database-per-test.md)). CI runs them in the `test` job. |
 
 - Each app the harness starts gets its own database from `testdb.New` and its own key prefix from `testvalkey.New`, so the Compose Postgres and Valkey have to be running (`make services`).
-- The harness builds the app in-process through `internal/testsupport/testapp`, which the e2e tests share: `testapp.New` runs `bootstrap.NewWebApp` and `bootstrap.NewWorkerApp` in production mode on `testapp.Config`, `testapp.Serve` serves its `Handler()` from an `httptest.Server`, and its `RunQueuedJobs(t)` runs the due jobs. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect, a form body, a flash and an enqueued job, whose handler it registers on the worker app's `Jobs`. The client keeps a cookie jar and doesn't follow redirects. Responses are read in full, and HTML is parsed into goquery documents.
+- The harness builds the app in-process through `internal/testsupport/testapp`, which the e2e tests share: `testapp.New` runs `bootstrap.NewWebApp` and `bootstrap.NewWorkerApp` in production mode on `testapp.Config`, `testapp.Serve` serves its `Handler()` from an `httptest.Server`, and its `RunQueuedJobs(t)` runs the due jobs. Before serving, it mounts probe routes on the app's `Mux` through its `Responder`, for behaviour no real route triggers yet: an unexpected error, a redirect, a form body, a flash, an enqueued job, whose handler it registers on the worker app's `Jobs`, and a queued mail, which the worker hands to the app's `Outbox`. The client keeps a cookie jar and doesn't follow redirects. Responses are read in full, and HTML is parsed into goquery documents.
 - The app embeds `internal/asset/dist`, so run `make vite-build` before `make test-feature`. The tests also read `dist/manifest.json` to find the hashed URLs they expect.
 - `make test-go` leaves out `tests/feature/` and `tests/e2e/`, even when `FILES` names them, because they hold only tagged tests. So the pre-push hook and the agents' end-of-turn gate never run feature tests. CI does.
 - goquery is test-only, like testify: depguard keeps it out of non-test files, and go-arch-lint allows it in `feature-test` and in `web`, whose tests parse the rendered pages.

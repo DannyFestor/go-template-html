@@ -19,7 +19,7 @@ func TestTheWorkerRefusesAPoolSmallerThanItsConcurrencyPlusTwo(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	_, err = bootstrap.NewWorkerApp(t.Context(), config, slog.New(slog.DiscardHandler))
+	_, err = bootstrap.NewWorkerApp(t.Context(), config, slog.New(slog.DiscardHandler), nil)
 
 	assert.ErrorContains(t, err, "WORKER_DB_MAX_CONNS 11 is below QUEUE_CONCURRENCY 10 + 2")
 }

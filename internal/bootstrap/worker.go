@@ -23,7 +23,7 @@ func RunWorker() int {
 }
 
 func ServeWorker(ctx context.Context, config Config, logger *slog.Logger) error {
-	app, err := NewWorkerApp(ctx, config, logger)
+	app, err := NewWorkerApp(ctx, config, logger, newSMTPSender(config))
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func ServeWorker(ctx context.Context, config Config, logger *slog.Logger) error 
 	return nil
 }
 
-func NewWorkerApp(ctx context.Context, config Config, logger *slog.Logger) (*WorkerApp, error) {
+func NewWorkerApp(ctx context.Context, config Config, logger *slog.Logger, sender mailSender) (*WorkerApp, error) {
 	err := checkWorkerPoolSize(config)
 	if err != nil {
 		return nil, err
@@ -57,6 +57,7 @@ func NewWorkerApp(ctx context.Context, config Config, logger *slog.Logger) (*Wor
 	jobQueue := newJobQueue(pool)
 	jobs := worker.NewRegistry()
 	registerQueueJobs(jobs, jobQueue, config.Queue)
+	registerMailJobs(jobs, sender)
 
 	return &WorkerApp{
 		Jobs:   jobs,
