@@ -31,8 +31,8 @@ func credentials(email, password string) url.Values {
 	return url.Values{"email": {email}, "password": {password}}
 }
 
-func rememberedCredentials(email, password string) url.Values {
-	form := credentials(email, password)
+func adasRememberedCredentials() url.Values {
+	form := credentials(adaEmail, factory.Password)
 	form.Set("remember", "on")
 
 	return form
@@ -220,7 +220,7 @@ func TestARememberTokenRestoresTheSessionAfterTheSessionExpires(t *testing.T) {
 
 	running := startAppWhoseSessionsExpireAtOnce(t)
 	ada := running.createAda(t)
-	require.Equal(t, http.StatusSeeOther, running.login(t, rememberedCredentials(adaEmail, factory.Password)).status)
+	require.Equal(t, http.StatusSeeOther, running.login(t, adasRememberedCredentials()).status)
 	issued := running.rememberCookie(t)
 
 	assert.Equal(t, ada.Name, running.page(t, route.Dashboard).Find("#user-menu-name").Text())
@@ -232,7 +232,7 @@ func TestARequestRacingTheRestoreWithTheSameTokenIsSignedInAndKeepsTheRotatedCoo
 
 	running := startAppWhoseSessionsExpireAtOnce(t)
 	ada := running.createAda(t)
-	require.Equal(t, http.StatusSeeOther, running.login(t, rememberedCredentials(adaEmail, factory.Password)).status)
+	require.Equal(t, http.StatusSeeOther, running.login(t, adasRememberedCredentials()).status)
 	presented := running.rememberCookie(t)
 	require.Equal(t, http.StatusOK, running.get(t, route.Dashboard).status)
 
@@ -266,7 +266,7 @@ func TestLoggingOutForgetsTheRememberedDevice(t *testing.T) {
 
 	running := startApp(t)
 	running.createAda(t)
-	require.Equal(t, http.StatusSeeOther, running.login(t, rememberedCredentials(adaEmail, factory.Password)).status)
+	require.Equal(t, http.StatusSeeOther, running.login(t, adasRememberedCredentials()).status)
 	remembered := running.rememberCookie(t)
 	require.NotEmpty(t, remembered)
 

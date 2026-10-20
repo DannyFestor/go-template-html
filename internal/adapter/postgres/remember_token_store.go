@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -79,6 +78,20 @@ func (s *RememberTokenStore) Forget(ctx context.Context, token domain.RememberTo
 	return nil
 }
 
+func (s *RememberTokenStore) ForgetDevicesOf(ctx context.Context, userID domain.UserID) error {
+	id, err := parseUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	err = s.pool.queries(ctx).ForgetRememberTokensOfUser(ctx, id)
+	if err != nil {
+		return fmt.Errorf("forget the remember tokens of user %s: %w", userID, err)
+	}
+
+	return nil
+}
+
 func (s *RememberTokenStore) DeleteExpired(ctx context.Context, now time.Time) error {
 	err := s.pool.queries(ctx).DeleteExpiredRememberTokens(ctx, sqlcgen.DeleteExpiredRememberTokensParams{
 		Now:             now,
@@ -96,7 +109,5 @@ func (s *RememberTokenStore) replayableAfter(now time.Time) time.Time {
 }
 
 func validatorDigest(token domain.RememberToken) []byte {
-	digest := sha256.Sum256([]byte(token.Validator))
-
-	return digest[:]
+	return tokenDigest(token.Validator)
 }

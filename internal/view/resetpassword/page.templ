@@ -1,0 +1,50 @@
+package resetpassword
+
+import (
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view/component"
+)
+
+type Form struct {
+	Token  string
+	Errors map[string]string
+	Alert  string
+}
+
+templ Page(appName string, form Form) {
+	@component.AuthSplit(appName, "Reset password", "Please enter your new password below") {
+		<form
+			method="post"
+			action={ templ.SafeURL(route.ResetPassword) }
+			hx-boost="false"
+			novalidate
+			class="flex flex-col gap-4"
+		>
+			@component.Alert(form.Alert)
+			<input type="hidden" name="token" value={ form.Token }/>
+			@component.Field(component.FieldProps{
+				Label:        "Password",
+				Name:         "password",
+				Type:         "password",
+				Value:        "",
+				Placeholder:  "Password",
+				Autocomplete: "new-password",
+				Error:        form.Errors["password"],
+			})
+			@component.Field(component.FieldProps{
+				Label:        "Confirm password",
+				Name:         "password_confirmation",
+				Type:         "password",
+				Value:        "",
+				Placeholder:  "Confirm password",
+				Autocomplete: "new-password",
+				Error:        form.Errors["password_confirmation"],
+			})
+			@component.Button(component.ButtonProps{Label: "Reset password", Type: "submit", FullWidth: true})
+		</form>
+		<p class="text-center text-sm text-zinc-500">
+			Link expired?
+			<a href={ templ.SafeURL(route.ForgotPassword) } class="text-zinc-900 underline dark:text-white">Request a new one</a>
+		</p>
+	}
+}

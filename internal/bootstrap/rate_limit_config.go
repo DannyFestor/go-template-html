@@ -16,6 +16,9 @@ type RateLimits struct {
 	PasswordConfirmation RateLimit `env:"RATE_LIMIT_PASSWORD_CONFIRMATION" envDefault:"5/1m"`
 	VerificationResend   RateLimit `env:"RATE_LIMIT_VERIFICATION_RESEND"   envDefault:"6/1m"`
 	VerificationLink     RateLimit `env:"RATE_LIMIT_VERIFICATION_LINK"     envDefault:"6/1m"`
+	ForgotPassword       RateLimit `env:"RATE_LIMIT_FORGOT_PASSWORD"       envDefault:"5/1m"`
+	ForgotPasswordEmail  RateLimit `env:"RATE_LIMIT_FORGOT_PASSWORD_EMAIL" envDefault:"1/1m"`
+	ResetPassword        RateLimit `env:"RATE_LIMIT_RESET_PASSWORD"        envDefault:"5/1m"`
 }
 
 type RateLimit struct {

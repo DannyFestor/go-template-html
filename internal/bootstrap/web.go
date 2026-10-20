@@ -93,7 +93,7 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		return nil, errors.Join(err, app.Close())
 	}
 
-	err = app.route(config, logger, assets)
+	err = app.route(config, logger, assets) //nolint:contextcheck // Mail views get the sending request's context.
 	if err != nil {
 		return nil, errors.Join(err, app.Close())
 	}

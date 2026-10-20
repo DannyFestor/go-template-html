@@ -56,6 +56,7 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 		},
 		PasswordHashing: cheapestPasswordHashing(),
 		SignedURL:       bootstrap.SignedURL{TTL: time.Hour, EmailVerificationTTL: time.Hour},
+		PasswordReset:   bootstrap.PasswordReset{TTL: time.Hour},
 		RateLimits:      rateLimits(),
 		Queue: bootstrap.Queue{
 			Concurrency:     jobConcurrency,
@@ -68,15 +69,20 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 }
 
 func rateLimits() bootstrap.RateLimits {
-	perMinute := bootstrap.RateLimit{MaxAttempts: RateLimitAttempts, Window: time.Minute}
-
 	return bootstrap.RateLimits{
-		Registration:         perMinute,
-		Login:                perMinute,
-		PasswordConfirmation: perMinute,
-		VerificationResend:   perMinute,
-		VerificationLink:     perMinute,
+		Registration:         perMinute(RateLimitAttempts),
+		Login:                perMinute(RateLimitAttempts),
+		PasswordConfirmation: perMinute(RateLimitAttempts),
+		ForgotPassword:       perMinute(RateLimitAttempts),
+		ForgotPasswordEmail:  perMinute(1),
+		ResetPassword:        perMinute(RateLimitAttempts),
+		VerificationResend:   perMinute(RateLimitAttempts),
+		VerificationLink:     perMinute(RateLimitAttempts),
 	}
+}
+
+func perMinute(attempts int) bootstrap.RateLimit {
+	return bootstrap.RateLimit{MaxAttempts: attempts, Window: time.Minute}
 }
 
 func unreachableMail() bootstrap.Mail {
