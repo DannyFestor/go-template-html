@@ -7,15 +7,17 @@ import (
 	dashboardhandler "github.com/DannyFestor/go-template-html/internal/handler/dashboard"
 	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 	homehandler "github.com/DannyFestor/go-template-html/internal/handler/home"
+	settingshandler "github.com/DannyFestor/go-template-html/internal/handler/settings"
 	"github.com/DannyFestor/go-template-html/internal/route"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
 
 type webRoutes struct {
-	assets    *asset.Server
-	responder *web.Responder
-	readiness *healthhandler.Readiness
-	auth      authRoutes
+	assets     *asset.Server
+	responder  *web.Responder
+	readiness  *healthhandler.Readiness
+	auth       authRoutes
+	appearance *settingshandler.Appearance
 }
 
 func newWebMux(routes webRoutes) *http.ServeMux {
@@ -37,6 +39,8 @@ func newWebMux(routes webRoutes) *http.ServeMux {
 		routes.auth.requireUser(responder.Handle(routes.auth.confirmPassword.Store)))
 	mux.Handle("GET "+route.Dashboard,
 		routes.auth.requireUser(responder.Handle(dashboardhandler.NewShow(responder).Serve)))
+	mux.Handle("GET "+route.SettingsAppearance, routes.auth.requireUser(responder.Handle(routes.appearance.Show)))
+	mux.Handle("POST "+route.SettingsAppearance, routes.auth.requireUser(responder.Handle(routes.appearance.Update)))
 
 	return mux
 }

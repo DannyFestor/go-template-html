@@ -4,7 +4,7 @@ import "github.com/DannyFestor/go-template-html/internal/view"
 
 templ document(shell view.Shell, mainID string) {
 	<!DOCTYPE html>
-	<html lang="en" class="h-full">
+	<html lang="en" class={ "h-full", shell.Theme }>
 		@head(shell)
 		<body
 			class="h-full bg-white text-zinc-900 antialiased dark:bg-zinc-900 dark:text-zinc-100"

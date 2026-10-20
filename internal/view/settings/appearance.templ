@@ -1,0 +1,47 @@
+package settings
+
+import (
+	"strconv"
+
+	"github.com/DannyFestor/go-template-html/internal/route"
+	"github.com/DannyFestor/go-template-html/internal/view/component"
+)
+
+type AppearanceForm struct {
+	Theme  string
+	Errors map[string]string
+}
+
+templ Appearance(form AppearanceForm) {
+	@component.SettingsPage("Appearance", "Update the appearance settings for your account") {
+		<form
+			method="post"
+			action={ templ.SafeURL(route.SettingsAppearance) }
+			x-data="appearance"
+			data-theme={ form.Theme }
+			x-init="theme = $el.dataset.theme"
+			class="flex flex-col gap-1.5"
+		>
+			<div role="group" aria-label="Theme" class="inline-flex w-fit gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+				@themeOption(form.Theme, "light", "Light")
+				@themeOption(form.Theme, "dark", "Dark")
+				@themeOption(form.Theme, "system", "System")
+			</div>
+			@component.FieldError("theme", form.Errors["theme"])
+		</form>
+	}
+}
+
+templ themeOption(chosen, theme, label string) {
+	<button
+		type="submit"
+		name="theme"
+		value={ theme }
+		aria-pressed={ strconv.FormatBool(chosen == theme) }
+		x-bind:aria-pressed="pressed($el.value)"
+		x-on:click="choose($el.value)"
+		class="rounded-md px-4 py-1.5 text-sm hover:bg-zinc-200/60 aria-pressed:bg-white aria-pressed:font-medium aria-pressed:shadow-sm dark:hover:bg-zinc-700/60 dark:aria-pressed:bg-zinc-700"
+	>
+		{ label }
+	</button>
+}

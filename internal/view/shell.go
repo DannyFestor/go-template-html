@@ -6,6 +6,7 @@ type Shell struct {
 	Stylesheets []string
 	User        ShellUser
 	Status      string
+	Theme       string
 }
 
 type ShellUser struct {

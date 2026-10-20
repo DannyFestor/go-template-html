@@ -92,6 +92,12 @@ _Avoid_: Backup code
 A re-entry of the current password required before a sensitive action, valid for a limited time.
 _Avoid_: Sudo mode, re-authentication
 
+### Appearance
+
+**Theme**:
+The light, dark or system colour scheme a visitor picks on the appearance settings page, kept per browser in a cookie, not on the account. The system theme follows the browser's own preference.
+_Avoid_: Colour mode, dark mode (for the setting), preference
+
 ### Realtime
 
 **Realtime module**:

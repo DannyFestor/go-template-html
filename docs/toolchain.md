@@ -488,6 +488,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - Each layout's `<body>` sets `hx-boost:inherited` to swap only its own `<main>` (`#public-main` or `#app-main`). htmx 4 does not inherit attributes unless they carry `:inherited`.
 - The CSP build evaluates expressions without `eval`, so attributes call methods on the registered components (`toggle()`, `active(...)`, `current($el.pathname)`) instead of inline arrow functions. The sidebar's `nav` component follows the URL through `htmx:after:history:push`, because boosted navigation never re-renders it.
 - htmx adds its indicator CSS through `document.adoptedStyleSheets`, which a strict `style-src` allows.
+- The theme lives in the `theme` cookie (`__Host-theme` over https, `HttpOnly`, a `Max-Age` of 400 days, the longest browsers keep a cookie), read by `middleware.ThemeCookie`. A missing or unknown value means `system`. `ShellBuilder` puts it in `Shell.Theme`, and the document renders it as a class on `<html>`: `light`, `dark` or `system`. The `dark` variant in `app.css` matches `.dark`, and `.system` under `prefers-color-scheme: dark`. The appearance form is a plain boosted form whose buttons post `theme`, answered with a redirect back. Boosted navigation never swaps `<html>`, so the `appearance` component switches its class on click.
 
 ## Node
 

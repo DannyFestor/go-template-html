@@ -18,4 +18,4 @@ Interactivity uses htmx 4 for every server interaction and Alpine for state that
 - The active navigation link is derived by Alpine from the current path, not rendered by the server, because the sidebar is never re-rendered during boosted navigation.
 - Out-of-band swaps appear only in fragments, never in a layout: a layout region marked `hx-swap-oob` is dropped when a crossing swaps the whole body.
 - Both layouts must share one `<head>`, since boosted swaps never replace it.
-- The theme is a cookie the server renders as the `dark` class on `<html>`, so no inline script is needed to avoid a flash of the wrong theme.
+- The theme is a cookie the server renders as the `dark` class on `<html>`, so no inline script is needed to avoid a flash of the wrong theme. The system theme renders as the `system` class, which leaves dark mode to `prefers-color-scheme` in CSS, since the server can't know the browser's preference.

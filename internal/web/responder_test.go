@@ -43,7 +43,7 @@ func newFlashingResponder(reporter *spyReporter, showErrorDetails bool, flashes 
 	}
 
 	return web.NewResponder(
-		web.NewShellBuilder("Acme Shop", assets, flashes, guest()),
+		newShellBuilder(assets, flashes, guest()),
 		flashes,
 		reporter,
 		showErrorDetails,
