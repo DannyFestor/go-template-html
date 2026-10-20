@@ -1,0 +1,11 @@
+package component
+
+templ FieldError(name, message string) {
+	if message != "" {
+		<p id={ fieldErrorID(name) } class="text-sm text-red-600 dark:text-red-400">{ message }</p>
+	}
+}
+
+func fieldErrorID(name string) string {
+	return name + "-error"
+}

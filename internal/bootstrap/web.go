@@ -15,6 +15,7 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/asset"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
 	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
+	settingshandler "github.com/DannyFestor/go-template-html/internal/handler/settings"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
@@ -143,8 +144,9 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 
 func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server) error {
 	session := middleware.Session{}
+	themes := middleware.NewThemeCookie(config.App.servedOverHTTPS())
 	a.Responder = web.NewResponder(
-		web.NewShellBuilder(config.App.Name, assets, session, middleware.AuthenticatedUser{}),
+		web.NewShellBuilder(config.App.Name, assets, session, middleware.AuthenticatedUser{}, themes),
 		session,
 		logreport.New(logger),
 		config.App.Env == EnvironmentLocal,
@@ -164,7 +166,8 @@ func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server)
 				config.HTTP.ReadinessCacheTTL,
 			),
 		),
-		auth: auth,
+		auth:       auth,
+		appearance: settingshandler.NewAppearance(a.Responder, themes),
 	})
 
 	chain, err := webMiddleware(webMiddlewareDeps{

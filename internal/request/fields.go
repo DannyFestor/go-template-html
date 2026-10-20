@@ -6,4 +6,5 @@ const (
 	FieldPassword             = "password"
 	FieldPasswordConfirmation = "password_confirmation"
 	FieldRemember             = "remember"
+	FieldTheme                = "theme"
 )

@@ -3,7 +3,26 @@
 /* Each build rewrites dist/.gitkeep, which git does not ignore, so watching it would rebuild without end. */
 @source not "../dist";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* The server can't know the system preference, so the system theme leaves dark mode to the media query. */
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:where(.system, .system *) {
+      @slot;
+    }
+  }
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.system {
+  color-scheme: light dark;
+}
 
 [x-cloak] {
   display: none !important;

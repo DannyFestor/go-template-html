@@ -82,7 +82,7 @@ func (r *Responder) writeFullPage(
 	kind layout.Kind,
 	body component,
 ) error {
-	shell, err := r.shells.Build(req.Context())
+	shell, err := r.shells.Build(req)
 	if err != nil {
 		return fmt.Errorf("build the shell: %w", err)
 	}

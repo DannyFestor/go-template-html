@@ -9,22 +9,49 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DannyFestor/go-template-html/internal/domain"
 	"github.com/DannyFestor/go-template-html/internal/factory"
+	"github.com/DannyFestor/go-template-html/internal/route"
 	"github.com/DannyFestor/go-template-html/internal/testsupport"
 )
+
+func (a *app) createAda(t *testing.T) domain.User {
+	t.Helper()
+
+	return testsupport.Must(a.factory().User().WithEmail("ada@example.com").Create(t.Context()))(t)
+}
+
+func (a *app) openSignedIn(t *testing.T, user domain.User, path string) browserPage {
+	t.Helper()
+
+	page := a.open(t, route.Login)
+	page.logIn(t, user)
+
+	_, err := page.Goto(a.server.URL + path)
+	require.NoError(t, err)
+
+	return page
+}
+
+func (p browserPage) logIn(t *testing.T, user domain.User) {
+	t.Helper()
+
+	require.NoError(t, p.Locator("#email").Fill(user.Email))
+	require.NoError(t, p.Locator("#password").Fill(factory.Password))
+	require.NoError(t, p.Locator(`form button[type="submit"]`).Click())
+
+	require.NoError(t, expect.Page(p.Page).ToHaveURL(regexp.MustCompile(`/dashboard$`)))
+}
 
 func TestAUserLogsInThroughTheBrowserAndLogsOutFromTheUserMenu(t *testing.T) {
 	t.Parallel()
 
 	running := startApp(t)
-	ada := testsupport.Must(running.factory().User().WithEmail("ada@example.com").Create(t.Context()))(t)
-	page := running.open(t, "/login")
+	ada := running.createAda(t)
+	page := running.open(t, route.Login)
 
-	require.NoError(t, page.Locator("#email").Fill(ada.Email))
-	require.NoError(t, page.Locator("#password").Fill(factory.Password))
-	require.NoError(t, page.Locator(`form button[type="submit"]`).Click())
+	page.logIn(t, ada)
 
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/dashboard$`)))
 	require.NoError(t, expect.Locator(page.Locator("#user-menu-name")).ToHaveText(ada.Name))
 
 	require.NoError(t, page.Locator("#user-menu-name").Click())

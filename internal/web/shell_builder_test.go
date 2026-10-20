@@ -3,6 +3,7 @@ package web_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -56,6 +57,12 @@ func (f *fakeCurrentUser) CurrentUser(context.Context) (domain.User, bool) {
 	return f.user, f.signedIn
 }
 
+type fixedTheme domain.Theme
+
+func (f fixedTheme) Read(*http.Request) domain.Theme {
+	return domain.Theme(f)
+}
+
 func guest() *fakeCurrentUser {
 	var nobody domain.User
 
@@ -83,22 +90,25 @@ func resolvedAssets() fakeAssets {
 	}
 }
 
+func newShellBuilder(assets fakeAssets, flashes *fakeFlashes, users *fakeCurrentUser) *web.ShellBuilder {
+	return web.NewShellBuilder("Acme Shop", assets, flashes, users, fixedTheme(domain.ThemeSystem))
+}
+
 func buildShellFor(t *testing.T, users *fakeCurrentUser) view.Shell {
 	t.Helper()
 
-	shell, err := web.NewShellBuilder("Acme Shop", resolvedAssets(), &fakeFlashes{message: ""}, users).
-		Build(t.Context())
+	shell, err := newShellBuilder(resolvedAssets(), &fakeFlashes{message: ""}, users).Build(newRequest(t, nil))
 	require.NoError(t, err)
 
 	return shell
 }
 
-func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsAndTheFlash(t *testing.T) {
+func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsTheFlashAndTheTheme(t *testing.T) {
 	t.Parallel()
 
 	flashes := &fakeFlashes{message: "Profile saved."}
 
-	shell, err := web.NewShellBuilder("Acme Shop", resolvedAssets(), flashes, guest()).Build(t.Context())
+	shell, err := newShellBuilder(resolvedAssets(), flashes, guest()).Build(newRequest(t, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, view.Shell{
@@ -107,8 +117,21 @@ func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsAndTheFlash(t *testin
 		Stylesheets: []string{"/assets/app-fimgy6vt.css"},
 		User:        view.ShellUser{Name: "", Email: "", Initials: ""},
 		Status:      "Profile saved.",
+		Theme:       "system",
 	}, shell)
 	assert.Empty(t, flashes.message, "the flash is still pending")
+}
+
+func TestBuildCarriesTheVisitorsChosenTheme(t *testing.T) {
+	t.Parallel()
+
+	builder := web.NewShellBuilder("Acme Shop", resolvedAssets(), &fakeFlashes{message: ""}, guest(),
+		fixedTheme(domain.ThemeDark))
+
+	shell, err := builder.Build(newRequest(t, nil))
+
+	require.NoError(t, err)
+	assert.Equal(t, "dark", shell.Theme)
 }
 
 func TestBuildShowsTheSignedInUser(t *testing.T) {
@@ -139,7 +162,7 @@ func TestBuildFailsWhenTheAssetsCannotBeResolved(t *testing.T) {
 
 	assets := fakeAssets{scripts: nil, stylesheets: nil, err: errManifestMissing}
 
-	_, err := web.NewShellBuilder("Acme Shop", assets, &fakeFlashes{message: ""}, guest()).Build(t.Context())
+	_, err := newShellBuilder(assets, &fakeFlashes{message: ""}, guest()).Build(newRequest(t, nil))
 
 	assert.ErrorIs(t, err, errManifestMissing)
 }

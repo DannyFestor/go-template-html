@@ -26,12 +26,6 @@ templ Field(f FieldProps) {
 			}
 			class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-900"
 		/>
-		if f.Error != "" {
-			<p id={ fieldErrorID(f.Name) } class="text-sm text-red-600 dark:text-red-400">{ f.Error }</p>
-		}
+		@FieldError(f.Name, f.Error)
 	</div>
-}
-
-func fieldErrorID(name string) string {
-	return name + "-error"
 }
