@@ -86,9 +86,11 @@ VALKEY_PORT ?= 6379
 MAIL_HOST ?= localhost
 MAIL_PORT ?= 1025
 MAILPIT_UI_PORT ?= 8025
+# A test run drops every template database its own migrations did not build, so each linked worktree names its own.
+TEST_DB_NAME ?= $(DB_NAME)
 # Tests never read .env, so the harnesses get the connections to the Compose services from the environment.
 TEST_SERVICES_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) \
-	DB_NAME=$(DB_NAME) DB_SCHEMA=$(DB_SCHEMA) VALKEY_HOST=$(VALKEY_HOST) VALKEY_PORT=$(VALKEY_PORT) \
+	DB_NAME=$(TEST_DB_NAME) DB_SCHEMA=$(DB_SCHEMA) VALKEY_HOST=$(VALKEY_HOST) VALKEY_PORT=$(VALKEY_PORT) \
 	MAIL_HOST=$(MAIL_HOST) MAIL_PORT=$(MAIL_PORT) MAILPIT_UI_PORT=$(MAILPIT_UI_PORT)
 E2E_BROWSER ?= chromium
 PSQL := docker compose exec -T postgres psql -v ON_ERROR_STOP=1 --quiet -U $(DB_USER)
@@ -168,6 +170,14 @@ help: ## Show this help
 
 .PHONY: setup
 setup: go-mod-download js-install hooks-install ## Download the Go and JS dependencies and install the git hooks
+
+.PHONY: worktree-setup
+worktree-setup: worktree-env js-install vite-build ## Give a linked worktree the main checkout's .env with test databases of its own, then build the frontend
+
+# The worktree has no .env yet, so DB_NAME is the Compose default, which the script uses when the main .env sets none.
+.PHONY: worktree-env
+worktree-env:
+	scripts/worktree-env.sh $(DB_NAME)
 
 .PHONY: go-mod-download
 go-mod-download:
@@ -508,7 +518,7 @@ test-mutation: | tmp ## Mutate internal/ with gremlins and run the unit tests ag
 # psql runs a query's output as statements only through \gexec, which it reads from its input.
 .PHONY: test-db-clean
 test-db-clean: ## Drop the test databases that failed tests kept, and every template database
-	$(PSQL) -d postgres -v db_name=$(DB_NAME) < scripts/drop-test-databases.psql
+	$(PSQL) -d postgres -v db_name=$(TEST_DB_NAME) < scripts/drop-test-databases.psql
 
 ##@ Build
 

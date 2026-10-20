@@ -8,3 +8,4 @@ node_modules/
 internal/asset/dist/*
 !internal/asset/dist/.gitkeep
 .vitest/
+.claude/worktrees/
