@@ -83,9 +83,13 @@ DB_NAME ?= go_template_html
 DB_SCHEMA ?= public
 VALKEY_HOST ?= localhost
 VALKEY_PORT ?= 6379
+MAIL_HOST ?= localhost
+MAIL_PORT ?= 1025
+MAILPIT_UI_PORT ?= 8025
 # Tests never read .env, so the harnesses get the connections to the Compose services from the environment.
 TEST_SERVICES_ENV = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) \
-	DB_NAME=$(DB_NAME) DB_SCHEMA=$(DB_SCHEMA) VALKEY_HOST=$(VALKEY_HOST) VALKEY_PORT=$(VALKEY_PORT)
+	DB_NAME=$(DB_NAME) DB_SCHEMA=$(DB_SCHEMA) VALKEY_HOST=$(VALKEY_HOST) VALKEY_PORT=$(VALKEY_PORT) \
+	MAIL_HOST=$(MAIL_HOST) MAIL_PORT=$(MAIL_PORT) MAILPIT_UI_PORT=$(MAILPIT_UI_PORT)
 E2E_BROWSER ?= chromium
 PSQL := docker compose exec -T postgres psql -v ON_ERROR_STOP=1 --quiet -U $(DB_USER)
 MIGRATIONS_DIR := migrations
@@ -189,6 +193,21 @@ playwright-version:
 .PHONY: github-setup
 github-setup: ## Create or update the GitHub repo's main ruleset and merge settings with gh, which needs admin rights
 	scripts/github-setup.sh .github/rulesets/main.json .github/merge-settings.json
+
+.PHONY: rename
+rename: rename-sweep go-mod-tidy generate build-packages rename-verify ## Rename a fresh clone to MODULE=… and NAME="…", which defaults to the slug title-cased
+
+.PHONY: rename-sweep
+rename-sweep:
+	scripts/rename.sh sweep "$(MODULE)" "$(NAME)"
+
+.PHONY: go-mod-tidy
+go-mod-tidy:
+	go mod tidy
+
+.PHONY: rename-verify
+rename-verify:
+	scripts/rename.sh verify
 
 ##@ Services
 

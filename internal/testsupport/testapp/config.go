@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/smtp"
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testdb"
 	"github.com/DannyFestor/go-template-html/internal/testsupport/testvalkey"
@@ -21,6 +22,7 @@ const (
 	sessionLifetime         = time.Hour
 	argon2MinimumKiBPerLane = 8
 	appKeyBytes             = 32
+	smtpSubmissionPort      = 587
 )
 
 func Config(name string, database testdb.Database, valkey testvalkey.Instance) bootstrap.Config {
@@ -56,7 +58,19 @@ func Config(name string, database testdb.Database, valkey testvalkey.Instance) b
 			PollInterval:    time.Second,
 			FailedRetention: time.Hour,
 		},
-		Log: bootstrap.Log{Level: slog.LevelInfo},
+		Mail: unreachableMail(),
+		Log:  bootstrap.Log{Level: slog.LevelInfo},
+	}
+}
+
+func unreachableMail() bootstrap.Mail {
+	return bootstrap.Mail{
+		Host:        "mail.invalid",
+		Port:        smtpSubmissionPort,
+		Username:    "",
+		Password:    bootstrap.Secret(""),
+		Encryption:  smtp.EncryptionNone,
+		FromAddress: "test@example.test",
 	}
 }
 

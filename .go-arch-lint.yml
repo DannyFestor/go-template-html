@@ -109,6 +109,8 @@ components:
     in: internal/adapter/argon2id/**
   adapter-compression:
     in: internal/adapter/compression/**
+  adapter-smtp:
+    in: internal/adapter/smtp/**
   migrations:
     in: migrations/**
   migrationsum:
@@ -153,6 +155,7 @@ deps:
       - adapter-goose
       - adapter-argon2id
       - adapter-compression
+      - adapter-smtp
       - migrations
       - migrationsum
       - seed
@@ -265,6 +268,12 @@ deps:
       - web
     canUse:
       - compress
+  adapter-smtp:
+    mayDependOn:
+      - adapter-smtp
+      - domain
+      # Its tests run against a closed port, and its integration tests read the mail back from Mailpit.
+      - testsupport
   migrations:
     mayDependOn:
       - migrations
@@ -294,6 +303,9 @@ deps:
       - adapter-postgres
       - adapter-goose
       - adapter-valkey
+      - adapter-smtp
+      # The harness captures the finished mail messages the worker would send.
+      - domain
       # Feature and e2e tests build the real app the way cmd/web does (ADR-0011).
       - bootstrap
     canUse:
@@ -312,6 +324,9 @@ deps:
       - web
       # Registers a probe job on the worker app.
       - worker
+      # Queues a probe mail through a mailer, rendered in the mail layout.
+      - job
+      - view
     canUse:
       - goquery
   e2e-test:

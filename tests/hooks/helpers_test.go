@@ -176,6 +176,19 @@ func requireOutputWithout(t *testing.T, run scriptRun, unwantedMessage string) {
 	}
 }
 
+func requireContent(t *testing.T, dir, name, want string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // The tests choose every path.
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+
+	if string(content) != want {
+		t.Errorf("%s = %q, want %q", name, content, want)
+	}
+}
+
 func requireLines(t *testing.T, output string, want ...string) {
 	t.Helper()
 

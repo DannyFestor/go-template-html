@@ -94,6 +94,7 @@ func startAppOn(t *testing.T, config bootstrap.Config) *app {
 	testApp := testapp.New(t, config, logs)
 	mountProbes(testApp.WebApp)
 	probeJobs := mountJobProbe(testApp)
+	mountMailProbe(testApp)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)

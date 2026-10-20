@@ -10,5 +10,6 @@ type Config struct {
 	SignedURL       SignedURL
 	RateLimits      RateLimits
 	Queue           Queue
+	Mail            Mail
 	Log             Log
 }

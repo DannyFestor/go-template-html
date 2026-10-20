@@ -34,6 +34,12 @@ _Avoid_: Dead job, dead letter
 The process that performs jobs.
 _Avoid_: Consumer, job runner
 
+### Mail
+
+**Mail**:
+A message the application sends to an email address, rendered into an HTML and a plain-text part when it is queued and delivered by the worker.
+_Avoid_: Email (for the message), notification
+
 ### Testing
 
 **Unit test**:

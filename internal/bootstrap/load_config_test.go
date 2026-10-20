@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/appkey"
+	"github.com/DannyFestor/go-template-html/internal/adapter/smtp"
 	"github.com/DannyFestor/go-template-html/internal/bootstrap"
 )
 
@@ -79,6 +80,14 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			Worker:                   bootstrap.WorkerDB{MaxConns: 12},
 		},
 		Queue: bootstrap.Queue{Concurrency: 10, PollInterval: time.Second, FailedRetention: 7 * 24 * time.Hour},
+		Mail: bootstrap.Mail{
+			Host:        "localhost",
+			Port:        1025,
+			Username:    "",
+			Password:    bootstrap.Secret(""),
+			Encryption:  smtp.EncryptionNone,
+			FromAddress: "hello@example.com",
+		},
 		Valkey: bootstrap.Valkey{
 			Host:      "valkey.internal",
 			Port:      6379,
@@ -190,11 +199,13 @@ func TestLoadConfigReportsEveryInvalidValueAtOnce(t *testing.T) {
 	_, err := bootstrap.LoadConfig(missingDotenv(t), []string{
 		"LOG_LEVEL=loud",
 		"SHUTDOWN_TIMEOUT=soon",
+		"MAIL_ENCRYPTION=ssl",
 	})
 
 	require.ErrorContains(t, err, "APP_ENV")
 	require.ErrorContains(t, err, `"loud"`)
 	require.ErrorContains(t, err, `"soon"`)
+	require.ErrorContains(t, err, `"ssl"`)
 }
 
 func TestLoadConfigRejectsUnknownEnvironment(t *testing.T) {
