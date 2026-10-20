@@ -23,6 +23,7 @@ func TestAUserResetsTheirForgottenPasswordThroughTheBrowserAndLogsIn(t *testing.
 	page := running.open(t, "/login")
 
 	require.NoError(t, page.Locator(`a[href="/forgot-password"]`).Click())
+	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/forgot-password$`)))
 	require.NoError(t, page.Locator("#email").Fill(ada.Email))
 	require.NoError(t, page.Locator(`form button[type="submit"]`).Click())
 	require.NoError(t, expect.Locator(page.Locator(`[role="status"]`)).
