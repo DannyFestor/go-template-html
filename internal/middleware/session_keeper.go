@@ -26,34 +26,7 @@ type sessionKeeper struct {
 }
 
 func (k *sessionKeeper) load(r *http.Request) (*sessionState, error) {
-	value, found := k.cookie.read(r)
-	if !found {
-		return guestSessionState(), nil
-	}
-
-	token := sessionToken(value)
-
-	encoded, stored, err := k.store.Load(r.Context(), token.storageID())
-	if err != nil {
-		return nil, fmt.Errorf("load the session: %w", err)
-	}
-
-	if !stored {
-		return staleSessionState(nil), nil
-	}
-
-	var data sessionData
-
-	err = json.Unmarshal(encoded, &data)
-	if err != nil {
-		return nil, fmt.Errorf("decode the session: %w", err)
-	}
-
-	if !k.clock.Now().Before(data.ExpiresAt) {
-		return staleSessionState([]sessionToken{token}), nil
-	}
-
-	return loadedSessionState(token, data), nil
+	return sessionStateReader{cookie: k.cookie, clock: k.clock, fetch: k.store.Load}.read(r)
 }
 
 func (k *sessionKeeper) commit(ctx context.Context, w http.ResponseWriter, state *sessionState) error {

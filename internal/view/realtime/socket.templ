@@ -1,0 +1,5 @@
+package realtime
+
+templ Socket(channels ...string) {
+	<div hx-ws:connect={ connectURL(channels) } hx-swap="none" hidden></div>
+}

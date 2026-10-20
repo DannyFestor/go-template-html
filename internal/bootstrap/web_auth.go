@@ -23,6 +23,7 @@ const (
 )
 
 type authRoutes struct {
+	authenticator               *middleware.Authenticator
 	register                    *authhandler.Register
 	login                       *authhandler.Login
 	logout                      *authhandler.Logout
@@ -60,6 +61,7 @@ func (a *WebApp) newAuthRoutes(config Config) (authRoutes, error) {
 	requireUser := chain(services.sessions.RestoreRemembered, services.authenticator.Require)
 
 	return authRoutes{
+		authenticator:      services.authenticator,
 		register:           a.newRegister(config, services),
 		login:              a.newLogin(config, services),
 		logout:             authhandler.NewLogout(a.Responder, services.sessions),

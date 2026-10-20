@@ -3,11 +3,13 @@ package layout
 import (
 	"github.com/DannyFestor/go-template-html/internal/view"
 	"github.com/DannyFestor/go-template-html/internal/view/component"
+	"github.com/DannyFestor/go-template-html/internal/view/realtime"
 )
 
 templ Public(shell view.Shell) {
 	@document(shell, PublicMainID) {
-		@component.BannerSlot()
+		@realtime.Socket(realtime.Announcements)
+		@realtime.BannerSlot()
 		<main id={ PublicMainID }>
 			@component.Status(shell.Status)
 			{ children... }

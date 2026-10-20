@@ -55,6 +55,8 @@ func setErrorHeaders(header http.Header, req *http.Request, rendered *StatusErro
 
 func errorMessage(status int) string {
 	switch status {
+	case http.StatusBadRequest:
+		return "This request is malformed."
 	case http.StatusForbidden:
 		return "You are not allowed to do this."
 	case http.StatusNotFound:

@@ -148,6 +148,12 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 - **Bump**: `go get github.com/redis/go-redis/v9@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`.
 - **Afterwards**: read the changelog for changed client defaults, such as timeouts, retries and the protocol version, and for commands that stop working against Valkey. Then run `make services test-integration vite-build test-feature`.
 
+## coder/websocket
+
+- **Pinned in**: `github.com/coder/websocket` in `go.mod` and `go.sum`. Only `internal/adapter/websocket` and the feature tests import it ([ADR-0009](adr/0009-broadcast-only-websockets-with-channels-fixed-per-socket.md)).
+- **Bump**: `go get github.com/coder/websocket@<version>`. A new major version also changes the module path, in the imports, `.go-arch-lint.yml` and `.golangci.yml`, where `gomodguard_v2` and the `importas` alias both name it.
+- **Afterwards**: read the changelog for changes to `Accept`'s origin check, `CloseRead`, the read limit and the close handshake. Then run `make test vite-build services test-feature test-e2e`.
+
 ## x/crypto
 
 - **Pinned in**: `golang.org/x/crypto` in `go.mod` and `go.sum`. Only `internal/adapter/argon2id` imports it, for `argon2` ([ADR-0008](adr/0008-stdlib-built-security-primitives-on-hkdf-derived-keys.md)).
@@ -200,7 +206,7 @@ One section per pinned item: where it is pinned, how to bump it and what to run 
 
 - **Pinned in**: `htmx.org` in `package.json`, at an exact version, and `pnpm-lock.yaml`.
 - **Bump**: `VP_HOME="$PWD/.vite-plus" bin/vp add htmx.org@<version>` with the exact version. While htmx 4 sits under npm's `next` dist-tag, `@latest` would install 2.x.
-- **Afterwards**: read the changelog for renamed events and attributes, such as `htmx:after:history:push` in `internal/asset/src/components/nav.ts` and `hx-boost:inherited` in `internal/view/layout/document.templ`. Then run `make typecheck-js test-js vite-build test-feature` and click through a boosted navigation in the browser.
+- **Afterwards**: read the changelog for renamed events and attributes, such as `htmx:after:history:push` in `internal/asset/src/components/nav.ts` and `hx-boost:inherited` in `internal/view/layout/document.templ`, and for changes to the `hx-ws` extension: its path `htmx.org/dist/ext/hx-ws.js` in `internal/asset/src/app.ts`, `hx-ws:connect` in `internal/view/realtime/socket.templ` and the close codes it reconnects on. Then run `make typecheck-js test-js vite-build test-feature` and click through a boosted navigation in the browser.
 
 ## Alpine
 

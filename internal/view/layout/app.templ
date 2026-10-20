@@ -4,6 +4,7 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/route"
 	"github.com/DannyFestor/go-template-html/internal/view"
 	"github.com/DannyFestor/go-template-html/internal/view/component"
+	"github.com/DannyFestor/go-template-html/internal/view/realtime"
 )
 
 templ App(shell view.Shell) {
@@ -34,12 +35,14 @@ templ App(shell view.Shell) {
 						@component.Icon(component.IconMenu)
 					</button>
 				</header>
-				@component.BannerSlot()
+				@realtime.BannerSlot()
 				<main id={ AppMainID } class="p-6 lg:p-10">
 					@component.Status(shell.Status)
 					{ children... }
 				</main>
 			</div>
+			@realtime.ToastStack()
+			@realtime.Socket(realtime.Announcements, realtime.UserChannel(shell.User.ID))
 		</div>
 	}
 }

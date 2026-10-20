@@ -13,6 +13,7 @@ type StatusError struct {
 }
 
 var (
+	ErrBadRequest       = &StatusError{Status: http.StatusBadRequest, RetryAfter: 0, Cause: nil}
 	ErrForbidden        = &StatusError{Status: http.StatusForbidden, RetryAfter: 0, Cause: nil}
 	ErrNotFound         = &StatusError{Status: http.StatusNotFound, RetryAfter: 0, Cause: nil}
 	ErrMethodNotAllowed = &StatusError{Status: http.StatusMethodNotAllowed, RetryAfter: 0, Cause: nil}

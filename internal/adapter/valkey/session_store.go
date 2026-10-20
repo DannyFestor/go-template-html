@@ -22,7 +22,14 @@ func NewSessionStore(client *Client, idle time.Duration) *SessionStore {
 
 // Load restarts the idle lifetime in the same command, so a session in use never needs a write to stay alive.
 func (s *SessionStore) Load(ctx context.Context, id string) ([]byte, bool, error) {
-	data, err := s.client.redis.GetEx(ctx, s.client.key(sessionArea, id), s.idle).Bytes()
+	return storedSession(s.client.redis.GetEx(ctx, s.client.key(sessionArea, id), s.idle).Bytes())
+}
+
+func (s *SessionStore) Peek(ctx context.Context, id string) ([]byte, bool, error) {
+	return storedSession(s.client.redis.Get(ctx, s.client.key(sessionArea, id)).Bytes())
+}
+
+func storedSession(data []byte, err error) ([]byte, bool, error) {
 	if errors.Is(err, redis.Nil) {
 		return nil, false, nil
 	}

@@ -55,6 +55,17 @@ func TestErrorRendersAStatusErrorsPageWithoutReportingIt(t *testing.T) {
 	assert.Empty(t, response.reporter.reported)
 }
 
+func TestErrorExplainsABadRequestWithoutReportingIt(t *testing.T) {
+	t.Parallel()
+
+	response := respondWithError(t, nil, false, web.ErrBadRequest)
+
+	assert.Equal(t, http.StatusBadRequest, response.recorder.Code)
+	assert.Equal(t, "Bad Request", response.main(t).Find("h1").Text())
+	assert.Equal(t, "This request is malformed.", response.main(t).Find("h1 + p").Text())
+	assert.Empty(t, response.reporter.reported)
+}
+
 func TestErrorReportsAnUnexpectedErrorAsAServerError(t *testing.T) {
 	t.Parallel()
 

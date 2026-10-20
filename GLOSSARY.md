@@ -118,3 +118,11 @@ A realtime broadcast stream any visitor may subscribe to.
 **Private channel**:
 A realtime broadcast stream only authorized, signed-in users may subscribe to.
 _Avoid_: Protected channel, auth channel
+
+**Announcement**:
+A message broadcast on the public `announcements` channel, shown as a banner on every open page.
+_Avoid_: Notification, alert
+
+**User notice**:
+A message broadcast on one user's private channel, shown as a toast on every page that user has open.
+_Avoid_: Notification, alert

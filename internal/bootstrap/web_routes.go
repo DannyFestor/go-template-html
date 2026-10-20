@@ -3,10 +3,12 @@ package bootstrap
 import (
 	"net/http"
 
+	"github.com/DannyFestor/go-template-html/internal/adapter/websocket"
 	"github.com/DannyFestor/go-template-html/internal/asset"
 	dashboardhandler "github.com/DannyFestor/go-template-html/internal/handler/dashboard"
 	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 	homehandler "github.com/DannyFestor/go-template-html/internal/handler/home"
+	realtimehandler "github.com/DannyFestor/go-template-html/internal/handler/realtime"
 	settingshandler "github.com/DannyFestor/go-template-html/internal/handler/settings"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/route"
@@ -19,6 +21,7 @@ type webRoutes struct {
 	readiness  *healthhandler.Readiness
 	auth       authRoutes
 	appearance *settingshandler.Appearance
+	realtime   *realtimehandler.Socket[*websocket.Conn]
 }
 
 func newWebMux(routes webRoutes) *http.ServeMux {
@@ -28,6 +31,7 @@ func newWebMux(routes webRoutes) *http.ServeMux {
 	mux.HandleFunc("GET "+route.Healthz, healthhandler.Liveness)
 	mux.Handle("GET "+route.Readyz, routes.readiness)
 	mux.Handle("GET "+route.Assets, routes.assets)
+	mux.Handle("GET "+route.Realtime, responder.Handle(routes.realtime.Serve))
 	mux.Handle("GET "+route.Home+"{$}", responder.Handle(homehandler.NewShow(responder).Serve))
 	mux.Handle("GET "+route.Register, routes.auth.requireGuest(responder.Handle(routes.auth.register.Show)))
 	mux.Handle("POST "+route.Register, routes.auth.requireGuest(responder.Handle(routes.auth.register.Store)))

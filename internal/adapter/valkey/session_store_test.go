@@ -82,6 +82,43 @@ func TestLoadingASessionRestartsItsIdleLifetime(t *testing.T) {
 	}
 }
 
+func TestAPeekedSessionLoadsBackWithoutRestartingItsIdleLifetime(t *testing.T) {
+	t.Parallel()
+
+	store := newSessionStore(t, testvalkey.New(t), 600*time.Millisecond)
+	require.NoError(t, store.Save(t.Context(), sessionID, []byte(payload)))
+
+	time.Sleep(300 * time.Millisecond)
+
+	peeked, found, err := store.Peek(t.Context(), sessionID)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.JSONEq(t, payload, string(peeked))
+
+	time.Sleep(400 * time.Millisecond)
+
+	_, found, err = store.Peek(t.Context(), sessionID)
+	require.NoError(t, err)
+	assert.False(t, found, "peeking kept the session alive")
+}
+
+func TestPeekingAnUnknownSessionFindsNothing(t *testing.T) {
+	t.Parallel()
+
+	_, found, err := newSessionStore(t, testvalkey.New(t), time.Hour).Peek(t.Context(), sessionID)
+
+	require.NoError(t, err)
+	assert.False(t, found)
+}
+
+func TestPeekingFailsWhileValkeyIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := newSessionStore(t, testvalkey.Unreachable(t), time.Hour).Peek(t.Context(), sessionID)
+
+	assert.Error(t, err)
+}
+
 func TestSessionsAreIsolatedByKeyPrefix(t *testing.T) {
 	t.Parallel()
 

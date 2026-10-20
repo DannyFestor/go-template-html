@@ -1,0 +1,16 @@
+package realtime
+
+templ BannerSlot() {
+	<div id="banner-slot"></div>
+}
+
+templ Banner(text string) {
+	<div
+		id="banner-slot"
+		hx-swap-oob="true"
+		role="status"
+		class="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+	>
+		{ text }
+	</div>
+}
