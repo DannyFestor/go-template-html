@@ -7,6 +7,7 @@ const (
 	Assets             = "/assets/"
 	Login              = "/login"
 	ForgotPassword     = "/forgot-password"
+	ResetPassword      = "/reset-password"
 	Register           = "/register"
 	Logout             = "/logout"
 	ConfirmPassword    = "/confirm-password"
@@ -21,3 +22,5 @@ const (
 	SettingsTwoFactor  = Settings + "/two-factor"
 	SettingsAppearance = Settings + "/appearance"
 )
+
+const ResetPasswordTokenParam = "token"

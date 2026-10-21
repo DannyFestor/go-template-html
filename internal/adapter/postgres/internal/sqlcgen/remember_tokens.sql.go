@@ -97,6 +97,17 @@ func (q *Queries) ForgetRememberToken(ctx context.Context, selector string) erro
 	return err
 }
 
+const forgetRememberTokensOfUser = `-- name: ForgetRememberTokensOfUser :exec
+DELETE FROM remember_tokens
+WHERE
+  user_id = $1
+`
+
+func (q *Queries) ForgetRememberTokensOfUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, forgetRememberTokensOfUser, userID)
+	return err
+}
+
 const issueRememberToken = `-- name: IssueRememberToken :exec
 INSERT INTO
   remember_tokens (selector, validator_digest, user_id, expires_at)

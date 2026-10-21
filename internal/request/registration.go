@@ -1,13 +1,10 @@
 package request
 
 import (
-	"fmt"
 	"net/url"
 
 	"github.com/DannyFestor/go-template-html/internal/validate"
 )
-
-const minPasswordRunes = 8
 
 type Registration struct {
 	Name                 string
@@ -29,11 +26,8 @@ func (r Registration) Validate() validate.Errors {
 	errors := validate.Errors{}
 
 	errors.Check(validate.NotBlank(r.Name), FieldName, "Enter your name.")
-	errors.Check(validate.NotBlank(r.Email), FieldEmail, enterYourEmail)
-	errors.Check(validate.EmailAddress(r.Email), FieldEmail, "Enter a valid email address.")
-	errors.Check(validate.MinRunes(r.Password, minPasswordRunes), FieldPassword,
-		fmt.Sprintf("The password must be at least %d characters.", minPasswordRunes))
-	errors.Check(r.Password == r.PasswordConfirmation, FieldPasswordConfirmation, "The passwords do not match.")
+	checkEmail(errors, r.Email)
+	checkNewPassword(errors, r.Password, r.PasswordConfirmation)
 
 	return errors
 }

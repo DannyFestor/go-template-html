@@ -168,6 +168,26 @@ func TestAForgottenRememberTokenIsNotConsumed(t *testing.T) {
 	assert.False(t, consumed)
 }
 
+func TestForgettingTheDevicesOfAUserForgetsAllItsRememberTokensButNoOneElses(t *testing.T) {
+	t.Parallel()
+
+	fixture := newRememberTokenFixture(t)
+	first := fixture.issue(t, noon().Add(time.Hour))
+	second := fixture.issue(t, noon().Add(time.Hour))
+	othersToken := remembertoken.Generator{}.New()
+	require.NoError(
+		t,
+		fixture.store.Issue(t.Context(), createUser(t, fixture.pool), othersToken, noon().Add(time.Hour)),
+	)
+
+	require.NoError(t, fixture.store.ForgetDevicesOf(t.Context(), fixture.userID))
+
+	for token, kept := range map[domain.RememberToken]bool{first: false, second: false, othersToken: true} {
+		_, found := fixture.consume(t, token, noon())
+		assert.Equal(t, kept, found, token.Selector)
+	}
+}
+
 func TestDeleteExpiredDeletesTheExpiredTokensAndTheReplacedOnesPastTheReplayWindow(t *testing.T) {
 	t.Parallel()
 

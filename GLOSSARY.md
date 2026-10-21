@@ -80,6 +80,10 @@ _Avoid_: Activation link, confirmation link
 A long-lived credential that one device keeps so the user is signed back in after their session ends.
 _Avoid_: Remember-me cookie, persistent login, auth token
 
+**Password reset link**:
+A single-use link, valid for a limited time, mailed to a user who forgot their password so they can choose a new one without signing in.
+_Avoid_: Reset token (in prose), recovery link
+
 **Security setting**:
 A choice an individual user makes about their own account's protection, such as enabling two-factor authentication.
 _Avoid_: Preference

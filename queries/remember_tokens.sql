@@ -46,6 +46,11 @@ DELETE FROM remember_tokens
 WHERE
   selector = @selector;
 
+-- name: ForgetRememberTokensOfUser :exec
+DELETE FROM remember_tokens
+WHERE
+  user_id = @user_id;
+
 -- name: DeleteExpiredRememberTokens :exec
 DELETE FROM remember_tokens
 WHERE

@@ -8,6 +8,7 @@ import (
 	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 	homehandler "github.com/DannyFestor/go-template-html/internal/handler/home"
 	settingshandler "github.com/DannyFestor/go-template-html/internal/handler/settings"
+	"github.com/DannyFestor/go-template-html/internal/middleware"
 	"github.com/DannyFestor/go-template-html/internal/route"
 	"github.com/DannyFestor/go-template-html/internal/web"
 )
@@ -32,6 +33,14 @@ func newWebMux(routes webRoutes) *http.ServeMux {
 	mux.Handle("POST "+route.Register, routes.auth.requireGuest(responder.Handle(routes.auth.register.Store)))
 	mux.Handle("GET "+route.Login, routes.auth.requireGuest(responder.Handle(routes.auth.login.Show)))
 	mux.Handle("POST "+route.Login, routes.auth.requireGuest(responder.Handle(routes.auth.login.Store)))
+	mux.Handle("GET "+route.ForgotPassword,
+		routes.auth.requireGuest(responder.Handle(routes.auth.forgotPassword.Show)))
+	mux.Handle("POST "+route.ForgotPassword,
+		routes.auth.requireGuest(responder.Handle(routes.auth.forgotPassword.Store)))
+	mux.Handle("GET "+route.ResetPassword,
+		middleware.NoReferrer(routes.auth.requireGuest(responder.Handle(routes.auth.resetPassword.Show))))
+	mux.Handle("POST "+route.ResetPassword,
+		routes.auth.requireGuest(responder.Handle(routes.auth.resetPassword.Store)))
 	mux.Handle("POST "+route.Logout, routes.auth.requireUser(responder.Handle(routes.auth.logout.Serve)))
 	mux.Handle("GET "+route.ConfirmPassword,
 		routes.auth.requireUser(responder.Handle(routes.auth.confirmPassword.Show)))

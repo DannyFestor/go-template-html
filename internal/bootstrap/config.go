@@ -8,6 +8,7 @@ type Config struct {
 	Session         Session
 	PasswordHashing PasswordHashing
 	SignedURL       SignedURL
+	PasswordReset   PasswordReset
 	RateLimits      RateLimits
 	Queue           Queue
 	Mail            Mail

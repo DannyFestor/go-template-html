@@ -8,6 +8,7 @@ const (
 		"object-src 'none'"
 	permissionsPolicy       = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 	strictTransportSecurity = "max-age=31536000"
+	referrerPolicyHeader    = "Referrer-Policy"
 )
 
 func SecurityHeaders(strictTransport bool) func(http.Handler) http.Handler {
@@ -23,7 +24,7 @@ func SecurityHeaders(strictTransport bool) func(http.Handler) http.Handler {
 func setSecurityHeaders(header http.Header, strictTransport bool) {
 	header.Set("Content-Security-Policy", contentSecurityPolicy)
 	header.Set("X-Content-Type-Options", "nosniff")
-	header.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	header.Set(referrerPolicyHeader, "strict-origin-when-cross-origin")
 	header.Set("Cross-Origin-Opener-Policy", "same-origin")
 	header.Set("Permissions-Policy", permissionsPolicy)
 

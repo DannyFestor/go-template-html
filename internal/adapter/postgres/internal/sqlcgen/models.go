@@ -24,6 +24,12 @@ type Job struct {
 	ScheduledFor *time.Time
 }
 
+type PasswordResetToken struct {
+	UserID      uuid.UUID
+	TokenDigest []byte
+	ExpiresAt   time.Time
+}
+
 type RecoveryCode struct {
 	UserID        uuid.UUID
 	Digest        []byte

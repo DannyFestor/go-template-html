@@ -29,6 +29,8 @@ type authRoutes struct {
 	confirmPassword             *authhandler.ConfirmPassword
 	verificationNotice          *authhandler.VerificationNotice
 	verifyEmail                 *authhandler.VerifyEmail
+	forgotPassword              *authhandler.ForgotPassword
+	resetPassword               *authhandler.ResetPassword
 	requireUser                 wrapper
 	requireVerified             wrapper
 	requireSignedLink           wrapper
@@ -64,6 +66,8 @@ func (a *WebApp) newAuthRoutes(config Config) (authRoutes, error) {
 		confirmPassword:    a.newConfirmPassword(config, services),
 		verificationNotice: a.newVerificationNotice(config, services),
 		verifyEmail:        a.newVerifyEmail(config, services),
+		forgotPassword:     a.newForgotPassword(config, services),
+		resetPassword:      a.newResetPassword(config, services),
 		requireUser:        requireUser,
 		requireVerified:    chain(requireUser, services.authenticator.RequireVerified),
 		requireSignedLink: chain(

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"time"
 )
@@ -23,6 +24,12 @@ func ErrTooManyRequests(retryAfter time.Duration) *StatusError {
 
 func ErrServiceUnavailable(cause error) *StatusError {
 	return &StatusError{Status: http.StatusServiceUnavailable, RetryAfter: 0, Cause: cause}
+}
+
+func IsTooManyRequests(err error) bool {
+	refusal, ok := errors.AsType[*StatusError](err)
+
+	return ok && refusal.Status == http.StatusTooManyRequests
 }
 
 func (e *StatusError) Error() string {

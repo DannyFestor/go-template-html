@@ -36,8 +36,14 @@ func (a *app) openSignedIn(t *testing.T, user domain.User, path string) browserP
 func (p browserPage) logIn(t *testing.T, user domain.User) {
 	t.Helper()
 
-	require.NoError(t, p.Locator("#email").Fill(user.Email))
-	require.NoError(t, p.Locator("#password").Fill(factory.Password))
+	p.logInWith(t, user.Email, factory.Password)
+}
+
+func (p browserPage) logInWith(t *testing.T, email, password string) {
+	t.Helper()
+
+	require.NoError(t, p.Locator("#email").Fill(email))
+	require.NoError(t, p.Locator("#password").Fill(password))
 	require.NoError(t, p.Locator(`form button[type="submit"]`).Click())
 
 	require.NoError(t, expect.Page(p.Page).ToHaveURL(regexp.MustCompile(`/dashboard$`)))
