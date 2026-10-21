@@ -25,7 +25,7 @@ func TestAUserSwitchesThemesWithoutAFullReload(t *testing.T) {
 	_, err := page.Evaluate(reloadMarker + " = true")
 	require.NoError(t, err)
 
-	require.NoError(t, page.Locator(themeButton("dark")).Click())
+	page.click(t, themeButton("dark"))
 
 	require.NoError(t, expect.Locator(page.Locator("html")).ToContainClass("dark"))
 	require.NoError(t, expect.Locator(page.Locator(appearanceForm)).ToHaveAttribute("data-theme", "dark"))

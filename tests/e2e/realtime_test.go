@@ -3,7 +3,6 @@
 package e2e_test
 
 import (
-	"regexp"
 	"testing"
 	"time"
 
@@ -53,8 +52,7 @@ func TestAnAnnouncementAppearsAsABannerAfterBoostedNavigation(t *testing.T) {
 
 	running := startApp(t)
 	page := running.open(t, "/")
-	require.NoError(t, page.Locator(`header a[href="/login"]`).Click())
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/login$`)))
+	page.clickTo(t, headerLoginLink, route.Login)
 
 	keepBroadcasting(t, func() {
 		running.Announcements.Broadcast(t.Context(), domain.Announcement{Text: announcementText})

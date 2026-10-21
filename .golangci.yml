@@ -53,6 +53,9 @@ linters:
       forbid:
         - pattern: ^context\.WithValue$
           msg: only adapter/postgres and middleware put values in ctx (ADR-0002)
+        - pattern: ^playwright\.Locator\.Click$
+          pkg: ^github\.com/mxschmitt/playwright-go$
+          msg: click through browserPage.clickTo, which waits for the destination, or browserPage.click
       analyze-types: true
     funlen:
       lines: 40
@@ -139,6 +142,10 @@ linters:
         linters:
           - forbidigo
         text: context\.WithValue
+      - path: tests/e2e/harness_test\.go
+        linters:
+          - forbidigo
+        text: \.Click` forbidden
 
 formatters:
   enable:

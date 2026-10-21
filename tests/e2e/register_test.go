@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DannyFestor/go-template-html/internal/route"
 )
 
 func TestAVisitorRegistersVerifiesTheirEmailAndLandsOnTheDashboard(t *testing.T) {
@@ -26,9 +28,7 @@ func TestAVisitorRegistersVerifiesTheirEmailAndLandsOnTheDashboard(t *testing.T)
 		require.NoError(t, page.Locator(field).Fill(value), field)
 	}
 
-	require.NoError(t, page.Locator(`form button[type="submit"]`).Click())
-
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/verify-email$`)))
+	page.clickTo(t, `form button[type="submit"]`, route.VerifyEmail)
 	require.NoError(t, expect.Locator(page.Locator("main h1")).ToHaveText("Verify your email address"))
 
 	_, err := page.Goto(running.server.URL + running.verificationLinkSentTo(t, "ada@example.com"))

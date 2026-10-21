@@ -355,6 +355,9 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 - `TestMain` launches one browser for the package. Each test gets its own app and database through `internal/testsupport/testapp`, as in the feature tests, and its own browser context.
 - `openPage` records the console errors and uncaught exceptions of the page, which catch a script or stylesheet the CSP blocks or the server fails to serve.
 - Assertions use Playwright's auto-waiting `expect`, so the tests never sleep.
+- Every click goes through the page's helpers in `harness_test.go`. `clickTo(t, selector, path)` is for a click that navigates, and it asserts the page is at `path` before it returns. `click(t, selector)` is for a click that stays on the page. They exist because pages share field ids, such as the `#email` of the login and forgot-password forms. An action that runs before a navigation finishes hits the old page, and auto-waiting covers assertions, not actions.
+- forbidigo rejects a raw `Locator.Click` everywhere except `harness_test.go`. It matches the call, not the selector, so it can't tell a link from a button and bans the call outright.
+- A form that redirects back to its own URL, as forgot-password does, passes `clickTo` at once. The test then waits on something only the new page shows, such as its flash.
 - Like the feature tests, the app embeds `internal/asset/dist`, so run `make vite-build` first, and the Compose Postgres and Valkey have to be running.
 - playwright-go is test-only: depguard keeps it out of non-test files, and go-arch-lint allows it only in `e2e-test`.
 - `make test-all` runs `test`, `test-integration`, `test-feature` and `test-e2e`.
