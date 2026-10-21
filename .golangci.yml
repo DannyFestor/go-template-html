@@ -80,6 +80,7 @@ linters:
         - module: golang.org/x/crypto
         - module: github.com/mxschmitt/playwright-go
         - module: github.com/brianvoe/gofakeit/v7
+        - module: github.com/coder/websocket
         # Required only by the agent hooks' own module, tools/agenthook.
         - module: mvdan.cc/sh/v3
     importas:
@@ -91,6 +92,9 @@ linters:
         # A handler package shares its area's name with the action package that bootstrap wires into it.
         - pkg: github.com/DannyFestor/go-template-html/internal/handler/(\w+)
           alias: ${1}handler
+        # The websocket adapter's black-box tests import the library, which has the adapter's package name.
+        - pkg: github.com/coder/websocket
+          alias: coderws
     interfacebloat:
       max: 5
     nestif:

@@ -1,0 +1,16 @@
+package realtime
+
+templ ToastStack() {
+	<div id="toast-stack" aria-live="polite" class="fixed right-4 bottom-4 z-40 flex w-80 flex-col gap-2"></div>
+}
+
+templ Toast(text string) {
+	<div hx-swap-oob="beforeend:#toast-stack">
+		<div
+			role="status"
+			class="rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+		>
+			{ text }
+		</div>
+	</div>
+}

@@ -9,11 +9,13 @@ import (
 	"net/http"
 
 	"github.com/DannyFestor/go-template-html/internal/adapter/argon2id"
+	"github.com/DannyFestor/go-template-html/internal/adapter/broadcast"
 	"github.com/DannyFestor/go-template-html/internal/adapter/logreport"
 	"github.com/DannyFestor/go-template-html/internal/adapter/postgres"
 	"github.com/DannyFestor/go-template-html/internal/adapter/valkey"
 	"github.com/DannyFestor/go-template-html/internal/asset"
 	"github.com/DannyFestor/go-template-html/internal/buildinfo"
+	"github.com/DannyFestor/go-template-html/internal/domain"
 	healthhandler "github.com/DannyFestor/go-template-html/internal/handler/health"
 	settingshandler "github.com/DannyFestor/go-template-html/internal/handler/settings"
 	"github.com/DannyFestor/go-template-html/internal/middleware"
@@ -28,9 +30,12 @@ type WebApp struct {
 	Passwords                   *argon2id.Hasher
 	Responder                   *web.Responder
 	RequirePasswordConfirmation func(http.Handler) http.Handler
+	Announcements               *broadcast.Broadcaster[domain.Announcement]
+	UserNotices                 *broadcast.Broadcaster[domain.UserNotice]
 	handler                     http.Handler
 	pool                        *postgres.Pool
 	valkey                      *valkey.Client
+	realtime                    *realtimeModule
 }
 
 func RunWeb() int {
@@ -60,6 +65,7 @@ func serveWebApp(ctx context.Context, config Config, logger *slog.Logger, app *W
 	)
 
 	server := newWebServer(config.HTTP, app.Handler(), logger)
+	app.realtime.closeSocketsOnShutdown(server)
 
 	return Serve(ctx, server, listener, config.App.ShutdownTimeout)
 }
@@ -83,9 +89,12 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		Passwords:                   passwords,
 		Responder:                   nil,
 		RequirePasswordConfirmation: nil,
+		Announcements:               nil,
+		UserNotices:                 nil,
 		handler:                     nil,
 		pool:                        nil,
 		valkey:                      nil,
+		realtime:                    nil,
 	}
 
 	err = app.connect(ctx, config)
@@ -93,7 +102,7 @@ func NewWebApp(ctx context.Context, config Config, logger *slog.Logger) (*WebApp
 		return nil, errors.Join(err, app.Close())
 	}
 
-	err = app.route(config, logger, assets) //nolint:contextcheck // Mail views get the sending request's context.
+	err = app.route(ctx, config, logger, assets)
 	if err != nil {
 		return nil, errors.Join(err, app.Close())
 	}
@@ -107,6 +116,10 @@ func (a *WebApp) Handler() http.Handler {
 
 func (a *WebApp) Close() error {
 	var err error
+
+	if a.realtime != nil {
+		a.realtime.close()
+	}
 
 	if a.valkey != nil {
 		err = a.valkey.Close()
@@ -144,7 +157,7 @@ func (a *WebApp) connect(ctx context.Context, config Config) error {
 	return nil
 }
 
-func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server) error {
+func (a *WebApp) route(ctx context.Context, config Config, logger *slog.Logger, assets *asset.Server) error {
 	session := middleware.Session{}
 	themes := middleware.NewThemeCookie(config.App.servedOverHTTPS())
 	a.Responder = web.NewResponder(
@@ -154,18 +167,20 @@ func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server)
 		config.App.Env == EnvironmentLocal,
 	)
 
-	auth, err := a.newAuthRoutes(config)
+	auth, err := a.newAuthRoutes(config) //nolint:contextcheck // Mail views get the sending request's context.
 	if err != nil {
 		return err
 	}
 
 	a.RequirePasswordConfirmation = auth.requirePasswordConfirmation
+	a.startRealtime(ctx, config, logger, auth.authenticator)
 	a.Mux = newWebMux(webRoutes{
 		assets:     assets,
 		responder:  a.Responder,
 		readiness:  a.newReadiness(config),
 		auth:       auth,
 		appearance: settingshandler.NewAppearance(a.Responder, themes),
+		realtime:   a.realtime.socket,
 	})
 
 	chain, err := webMiddleware(webMiddlewareDeps{

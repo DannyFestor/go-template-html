@@ -116,7 +116,7 @@ func TestBuildFillsTheShellWithTheAppNameTheAppEntrysAssetsTheFlashAndTheTheme(t
 		AppName:     "Acme Shop",
 		Script:      "/assets/app-nx4752wa.js",
 		Stylesheets: []string{"/assets/app-fimgy6vt.css"},
-		User:        view.ShellUser{Name: "", Email: "", Initials: ""},
+		User:        view.ShellUser{ID: "", Name: "", Email: "", Initials: ""},
 		Status:      "Profile saved.",
 		Theme:       "system",
 	}, shell)
@@ -140,7 +140,12 @@ func TestBuildShowsTheSignedInUser(t *testing.T) {
 
 	shell := buildShellFor(t, signedIn("Ada Lovelace"))
 
-	assert.Equal(t, view.ShellUser{Name: "Ada Lovelace", Email: "ada@example.com", Initials: "AL"}, shell.User)
+	assert.Equal(t, view.ShellUser{
+		ID:       "019a1f6e-3c4b-7d2e-8f10-1234567890ab",
+		Name:     "Ada Lovelace",
+		Email:    "ada@example.com",
+		Initials: "AL",
+	}, shell.User)
 }
 
 func TestBuildTakesTheInitialsOfTheFirstTwoWordsOfTheName(t *testing.T) {

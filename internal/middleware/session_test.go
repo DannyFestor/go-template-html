@@ -46,6 +46,10 @@ func (s *memoryStore) Load(_ context.Context, id string) ([]byte, bool, error) {
 	return data, found, s.loadErr
 }
 
+func (s *memoryStore) Peek(ctx context.Context, id string) ([]byte, bool, error) {
+	return s.Load(ctx, id)
+}
+
 func (s *memoryStore) Save(_ context.Context, id string, data []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

@@ -12,6 +12,7 @@ import (
 	"github.com/DannyFestor/go-template-html/internal/route"
 	"github.com/DannyFestor/go-template-html/internal/view"
 	"github.com/DannyFestor/go-template-html/internal/view/component"
+	"github.com/DannyFestor/go-template-html/internal/view/realtime"
 )
 
 func App(shell view.Shell) templ.Component {
@@ -117,7 +118,7 @@ func App(shell view.Shell) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = component.BannerSlot().Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = realtime.BannerSlot().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -128,7 +129,7 @@ func App(shell view.Shell) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(AppMainID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/view/layout/app.templ`, Line: 38, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/view/layout/app.templ`, Line: 39, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -146,7 +147,19 @@ func App(shell view.Shell) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</main></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</main></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = realtime.ToastStack().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = realtime.Socket(realtime.Announcements, realtime.UserChannel(shell.User.ID)).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

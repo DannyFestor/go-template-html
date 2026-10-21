@@ -70,8 +70,8 @@ func (b *ShellBuilder) Build(req *http.Request) (view.Shell, error) {
 func (b *ShellBuilder) shellUser(ctx context.Context) view.ShellUser {
 	user, signedIn := b.users.CurrentUser(ctx)
 	if !signedIn {
-		return view.ShellUser{Name: "", Email: "", Initials: ""}
+		return view.ShellUser{ID: "", Name: "", Email: "", Initials: ""}
 	}
 
-	return view.ShellUser{Name: user.Name, Email: user.Email, Initials: initials(user.Name)}
+	return view.ShellUser{ID: string(user.ID), Name: user.Name, Email: user.Email, Initials: initials(user.Name)}
 }

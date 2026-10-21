@@ -10,6 +10,7 @@ type Shell struct {
 }
 
 type ShellUser struct {
+	ID       string
 	Name     string
 	Email    string
 	Initials string

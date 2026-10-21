@@ -1,5 +1,6 @@
 import "./app.css";
 import "htmx.org";
+import "htmx.org/dist/ext/hx-ws.js";
 import Alpine from "@alpinejs/csp";
 import persist from "@alpinejs/persist";
 

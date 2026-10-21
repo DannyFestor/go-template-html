@@ -33,10 +33,10 @@ func (a *app) registerAda(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, a.register(t, registration(adaEmail, "correct horse")).status)
 }
 
-func (a *app) createUnverifiedAda(t *testing.T) {
+func (a *app) createUnverifiedAda(t *testing.T) domain.User {
 	t.Helper()
 
-	testsupport.Must(a.factory().User().WithEmail(adaEmail).Unverified().Create(t.Context()))(t)
+	return testsupport.Must(a.factory().User().WithEmail(adaEmail).Unverified().Create(t.Context()))(t)
 }
 
 func (a *app) loginAs(t *testing.T, email string) {

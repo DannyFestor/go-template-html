@@ -47,6 +47,10 @@ vendors:
       # `/**` does not match the module's root package, which is all godotenv has.
       - github.com/joho/godotenv
       - github.com/caarlos0/env/**
+  websocket:
+    in:
+      - github.com/coder/websocket
+      - github.com/coder/websocket/**
   gofakeit:
     in:
       - github.com/brianvoe/gofakeit/v7
@@ -83,6 +87,9 @@ components:
     in: internal/validate/**
   handler:
     in: internal/handler/**
+  # The Realtime module, an optional module that only bootstrap may wire (docs/modules/realtime.md).
+  handler-realtime:
+    in: internal/handler/realtime/**
   job:
     in: internal/job/**
   worker:
@@ -113,6 +120,8 @@ components:
     in: internal/adapter/compression/**
   adapter-smtp:
     in: internal/adapter/smtp/**
+  adapter-websocket:
+    in: internal/adapter/websocket/**
   migrations:
     in: migrations/**
   migrationsum:
@@ -158,6 +167,8 @@ deps:
       - adapter-argon2id
       - adapter-compression
       - adapter-smtp
+      - adapter-websocket
+      - handler-realtime
       - migrations
       - migrationsum
       - seed
@@ -187,6 +198,12 @@ deps:
       - middleware
       - web
       - view
+      - route
+  handler-realtime:
+    mayDependOn:
+      - handler-realtime
+      - domain
+      - web
       - route
   job:
     mayDependOn:
@@ -276,6 +293,11 @@ deps:
       - domain
       # Its tests run against a closed port, and its integration tests read the mail back from Mailpit.
       - testsupport
+  adapter-websocket:
+    mayDependOn:
+      - adapter-websocket
+    canUse:
+      - websocket
   migrations:
     mayDependOn:
       - migrations
@@ -331,6 +353,8 @@ deps:
       - view
     canUse:
       - goquery
+      # Opens sockets on /ws the way the browser does.
+      - websocket
   e2e-test:
     mayDependOn:
       - bootstrap
