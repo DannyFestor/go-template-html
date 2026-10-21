@@ -2,6 +2,10 @@
 
 Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
+## Implementing an issue
+
+To implement a `ready-for-agent` issue, dispatch the `issue-implementer` agent (`.claude/agents/issue-implementer.md`) with the issue number.
+
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
