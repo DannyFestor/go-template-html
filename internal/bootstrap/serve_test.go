@@ -72,7 +72,7 @@ func TestServeClosesConnectionsThatOutlastTheTimeout(t *testing.T) {
 
 	<-handler.started
 	running.cancel()
-	<-running.result
+	require.ErrorIs(t, <-running.result, context.DeadlineExceeded)
 
 	select {
 	case status := <-running.status:
