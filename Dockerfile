@@ -1,5 +1,5 @@
 # The Go version matches the toolchain line in go.mod, so the image builds with the Go that CI tests with.
-FROM golang:1.27.2-trixie AS build
+FROM golang:1.27.3-trixie AS build
 
 WORKDIR /src
 COPY . .

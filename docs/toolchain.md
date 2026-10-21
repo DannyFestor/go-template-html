@@ -6,7 +6,7 @@ Every tool the repo uses: its version, its role and the pitfalls to know about. 
 
 | | |
 | --- | --- |
-| Version | `go 1.27`, `toolchain go1.27.2` in `go.mod` |
+| Version | `go 1.27`, `toolchain go1.27.3` in `go.mod` |
 | Role | Compiles the app. Each process is its own `main` under `cmd/` ([ADR-0010](adr/0010-makefile-as-the-command-surface-with-one-binary-per-process.md)). |
 
 - Any Go 1.21 or newer reads the `toolchain` line and downloads that exact version, so the Go you have installed only needs to be recent enough to bootstrap.
