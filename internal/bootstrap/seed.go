@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/DannyFestor/go-template-html/internal/action/auth"
 	"github.com/DannyFestor/go-template-html/internal/adapter/postgres"
 	"github.com/DannyFestor/go-template-html/internal/seed"
 )
@@ -27,9 +26,7 @@ func Seed(ctx context.Context, config Config, logger *slog.Logger) error {
 
 	defer pool.Close()
 
-	users := newUserStore(pool)
-
-	err = seed.New(auth.NewRegister(users, passwords), users, passwords).Run(ctx)
+	err = seed.New(newUserStore(pool), passwords).Run(ctx)
 	if err != nil {
 		return fmt.Errorf("seed the database: %w", err)
 	}

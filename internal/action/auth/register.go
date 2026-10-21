@@ -8,8 +8,10 @@ import (
 )
 
 type Register struct {
-	users     userCreator
-	passwords passwordHasher
+	transactor   transactor
+	users        userCreator
+	passwords    passwordHasher
+	verification verificationSender
 }
 
 type RegisterIn struct {
@@ -22,18 +24,46 @@ type RegisterOut struct {
 	User domain.User
 }
 
-func NewRegister(users userCreator, passwords passwordHasher) *Register {
-	return &Register{users: users, passwords: passwords}
+func NewRegister(
+	transactor transactor,
+	users userCreator,
+	passwords passwordHasher,
+	verification verificationSender,
+) *Register {
+	return &Register{transactor: transactor, users: users, passwords: passwords, verification: verification}
 }
 
 func (r *Register) Run(ctx context.Context, in RegisterIn) (RegisterOut, error) {
-	user, err := r.users.Create(ctx, domain.NewUser{
-		Name:         in.Name,
-		Email:        in.Email,
-		PasswordHash: domain.PasswordHash(r.passwords.Hash(in.Password)),
+	var registered RegisterOut
+
+	err := r.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
+		var err error
+
+		registered, err = r.register(ctx, in)
+
+		return err
 	})
 	if err != nil {
 		return RegisterOut{}, fmt.Errorf("register %s: %w", in.Email, err)
+	}
+
+	return registered, nil
+}
+
+func (r *Register) register(ctx context.Context, in RegisterIn) (RegisterOut, error) {
+	user, err := r.users.Create(ctx, domain.NewUser{
+		Name:          in.Name,
+		Email:         in.Email,
+		PasswordHash:  domain.PasswordHash(r.passwords.Hash(in.Password)),
+		EmailVerified: false,
+	})
+	if err != nil {
+		return RegisterOut{}, fmt.Errorf("create the user: %w", err)
+	}
+
+	_, err = r.verification.Run(ctx, SendVerificationMailIn{User: user})
+	if err != nil {
+		return RegisterOut{}, fmt.Errorf("mail the verification link: %w", err)
 	}
 
 	return RegisterOut{User: user}, nil

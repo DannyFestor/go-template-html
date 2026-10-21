@@ -101,11 +101,13 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 			PasswordConfirmationTimeout: 3 * time.Hour,
 		},
 		PasswordHashing: bootstrap.PasswordHashing{MemoryKiB: 19 * 1024, Iterations: 2, Parallelism: 1},
-		SignedURL:       bootstrap.SignedURL{TTL: 2 * time.Hour},
+		SignedURL:       bootstrap.SignedURL{TTL: 2 * time.Hour, EmailVerificationTTL: time.Hour},
 		RateLimits: bootstrap.RateLimits{
 			Registration:         bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
 			Login:                bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
 			PasswordConfirmation: bootstrap.RateLimit{MaxAttempts: 5, Window: time.Minute},
+			VerificationResend:   bootstrap.RateLimit{MaxAttempts: 6, Window: time.Minute},
+			VerificationLink:     bootstrap.RateLimit{MaxAttempts: 6, Window: time.Minute},
 		},
 		Log: bootstrap.Log{Level: slog.LevelInfo},
 	}, config)

@@ -41,9 +41,10 @@ func createUser(t *testing.T, pool *postgres.Pool) domain.UserID {
 	t.Helper()
 
 	user, err := newUserStore(pool).Create(t.Context(), domain.NewUser{
-		Name:         "Grace Hopper",
-		Email:        uuid.NewV4().String() + "@example.com",
-		PasswordHash: storedHash,
+		Name:          "Grace Hopper",
+		Email:         uuid.NewV4().String() + "@example.com",
+		PasswordHash:  storedHash,
+		EmailVerified: false,
 	})
 	require.NoError(t, err)
 

@@ -14,17 +14,32 @@ import (
 
 const createUser = `-- name: CreateUser :exec
 INSERT INTO
-  users (id, name, email, password, created_at)
+  users (
+    id,
+    name,
+    email,
+    password,
+    email_verified_at,
+    created_at
+  )
 VALUES
-  ($1, $2, $3, $4, $5)
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+  )
 `
 
 type CreateUserParams struct {
-	ID        uuid.UUID
-	Name      string
-	Email     string
-	Password  string
-	CreatedAt time.Time
+	ID              uuid.UUID
+	Name            string
+	Email           string
+	Password        string
+	EmailVerifiedAt *time.Time
+	CreatedAt       time.Time
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
@@ -33,6 +48,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 		arg.Name,
 		arg.Email,
 		arg.Password,
+		arg.EmailVerifiedAt,
 		arg.CreatedAt,
 	)
 	return err
@@ -44,7 +60,8 @@ SELECT
   name,
   email,
   password,
-  created_at
+  created_at,
+  email_verified_at
 FROM
   users
 WHERE
@@ -60,6 +77,7 @@ func (q *Queries) FindUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Email,
 		&i.Password,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -70,7 +88,8 @@ SELECT
   name,
   email,
   password,
-  created_at
+  created_at,
+  email_verified_at
 FROM
   users
 WHERE
@@ -86,8 +105,28 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, erro
 		&i.Email,
 		&i.Password,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
+}
+
+const markUserEmailVerified = `-- name: MarkUserEmailVerified :exec
+UPDATE users
+SET
+  email_verified_at = $1::timestamptz
+WHERE
+  id = $2
+  AND email_verified_at IS NULL
+`
+
+type MarkUserEmailVerifiedParams struct {
+	VerifiedAt time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) MarkUserEmailVerified(ctx context.Context, arg MarkUserEmailVerifiedParams) error {
+	_, err := q.db.Exec(ctx, markUserEmailVerified, arg.VerifiedAt, arg.ID)
+	return err
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec

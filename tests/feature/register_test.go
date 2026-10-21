@@ -47,7 +47,7 @@ func TestTheRegisterPageShowsTheRegistrationForm(t *testing.T) {
 	assert.Equal(t, 1, document.Find(`main#public-main a[href="/login"]`).Length())
 }
 
-func TestAVisitorRegistersAndLandsOnTheDashboard(t *testing.T) {
+func TestAVisitorRegistersAndIsSentOnToTheDashboard(t *testing.T) {
 	t.Parallel()
 
 	running := startApp(t)
@@ -56,10 +56,7 @@ func TestAVisitorRegistersAndLandsOnTheDashboard(t *testing.T) {
 
 	require.Equal(t, http.StatusSeeOther, registered.status)
 	require.Equal(t, route.Dashboard, registered.header.Get("Location"))
-
-	dashboard := running.page(t, route.Dashboard)
-	assert.Equal(t, "Dashboard", dashboard.Find("body main#app-main h1").Text())
-	assert.Equal(t, "Ada Lovelace", dashboard.Find("#user-menu-name").Text())
+	assertSentToTheVerificationNotice(t, running)
 }
 
 func TestARegistrationWithATakenEmailReRendersWithTheError(t *testing.T) {
@@ -113,7 +110,8 @@ func TestASignedInUserRequestingTheRegisterPageIsSentToTheDashboard(t *testing.T
 	t.Parallel()
 
 	running := startApp(t)
-	require.Equal(t, http.StatusSeeOther, running.register(t, registration("ada@example.com", "correct horse")).status)
+	ada := running.createAda(t)
+	running.loginAs(t, adaEmail)
 
 	for name, fetched := range map[string]response{
 		"page": running.get(t, route.Register),
@@ -123,7 +121,7 @@ func TestASignedInUserRequestingTheRegisterPageIsSentToTheDashboard(t *testing.T
 		assert.Equal(t, route.Dashboard, fetched.header.Get("Location"), name)
 	}
 
-	assert.Equal(t, "Ada Lovelace", running.page(t, route.Dashboard).Find("#user-menu-name").Text())
+	assert.Equal(t, ada.Name, running.page(t, route.Dashboard).Find("#user-menu-name").Text())
 }
 
 func TestAGuestRequestingTheDashboardIsSentToLogin(t *testing.T) {

@@ -14,6 +14,8 @@ type RateLimits struct {
 	Registration         RateLimit `env:"RATE_LIMIT_REGISTRATION"          envDefault:"5/1m"`
 	Login                RateLimit `env:"RATE_LIMIT_LOGIN"                 envDefault:"5/1m"`
 	PasswordConfirmation RateLimit `env:"RATE_LIMIT_PASSWORD_CONFIRMATION" envDefault:"5/1m"`
+	VerificationResend   RateLimit `env:"RATE_LIMIT_VERIFICATION_RESEND"   envDefault:"6/1m"`
+	VerificationLink     RateLimit `env:"RATE_LIMIT_VERIFICATION_LINK"     envDefault:"6/1m"`
 }
 
 type RateLimit struct {

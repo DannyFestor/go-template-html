@@ -1,8 +1,22 @@
 -- name: CreateUser :exec
 INSERT INTO
-  users (id, name, email, password, created_at)
+  users (
+    id,
+    name,
+    email,
+    password,
+    email_verified_at,
+    created_at
+  )
 VALUES
-  (@id, @name, @email, @password, @created_at);
+  (
+    @id,
+    @name,
+    @email,
+    @password,
+    @email_verified_at,
+    @created_at
+  );
 
 -- name: FindUser :one
 SELECT
@@ -10,7 +24,8 @@ SELECT
   name,
   email,
   password,
-  created_at
+  created_at,
+  email_verified_at
 FROM
   users
 WHERE
@@ -22,7 +37,8 @@ SELECT
   name,
   email,
   password,
-  created_at
+  created_at,
+  email_verified_at
 FROM
   users
 WHERE
@@ -34,3 +50,11 @@ SET
   password = @password
 WHERE
   id = @id;
+
+-- name: MarkUserEmailVerified :exec
+UPDATE users
+SET
+  email_verified_at = sqlc.arg(verified_at)::timestamptz
+WHERE
+  id = @id
+  AND email_verified_at IS NULL;

@@ -161,14 +161,9 @@ func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server)
 
 	a.RequirePasswordConfirmation = auth.requirePasswordConfirmation
 	a.Mux = newWebMux(webRoutes{
-		assets:    assets,
-		responder: a.Responder,
-		readiness: healthhandler.NewReadiness(
-			healthhandler.NewCachedPing(
-				healthhandler.NewDependencies(a.pool, a.valkey),
-				config.HTTP.ReadinessCacheTTL,
-			),
-		),
+		assets:     assets,
+		responder:  a.Responder,
+		readiness:  a.newReadiness(config),
 		auth:       auth,
 		appearance: settingshandler.NewAppearance(a.Responder, themes),
 	})
@@ -186,6 +181,15 @@ func (a *WebApp) route(config Config, logger *slog.Logger, assets *asset.Server)
 	a.handler = withMiddleware(a.Mux, chain)
 
 	return nil
+}
+
+func (a *WebApp) newReadiness(config Config) *healthhandler.Readiness {
+	return healthhandler.NewReadiness(
+		healthhandler.NewCachedPing(
+			healthhandler.NewDependencies(a.pool, a.valkey),
+			config.HTTP.ReadinessCacheTTL,
+		),
+	)
 }
 
 func newWebServer(config HTTP, handler http.Handler, logger *slog.Logger) *http.Server {

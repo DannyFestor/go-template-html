@@ -36,5 +36,5 @@ func New(users userCreator, passwords passwordHasher, seed uint64) *Factory {
 }
 
 func (f *Factory) User() *UserBuilder {
-	return &UserBuilder{factory: f, name: f.faker.Name(), email: f.faker.Email()}
+	return &UserBuilder{factory: f, name: f.faker.Name(), email: f.faker.Email(), verified: true}
 }

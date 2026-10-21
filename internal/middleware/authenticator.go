@@ -73,7 +73,7 @@ func (a *Authenticator) Require(next http.Handler) http.Handler {
 		}
 
 		if !authenticated {
-			a.sendToLogin(w, r)
+			a.sendAway(w, r, route.Login)
 
 			return
 		}
@@ -101,9 +101,22 @@ func (a *Authenticator) RequireGuest(next http.Handler) http.Handler {
 	})
 }
 
-func (a *Authenticator) sendToLogin(w http.ResponseWriter, r *http.Request) {
+func (a *Authenticator) RequireVerified(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, _ := AuthenticatedUser{}.CurrentUser(r.Context())
+		if !user.Verified() {
+			a.sendAway(w, r, route.VerifyEmail)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *Authenticator) sendAway(w http.ResponseWriter, r *http.Request, target string) {
 	a.intended.store(r)
-	a.responder.Redirect(w, r, route.Login)
+	a.responder.Redirect(w, r, target)
 }
 
 func (a *Authenticator) authenticate(ctx context.Context) (domain.User, bool, error) {

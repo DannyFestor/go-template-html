@@ -72,6 +72,10 @@ _Avoid_: Script test, hook test
 A signed-in user who has proven ownership of their current email address by following the link sent to it.
 _Avoid_: Confirmed user, activated user
 
+**Verification link**:
+A signed link, valid for a limited time, that is mailed to a user's email address and makes them a verified user when they follow it while signed in.
+_Avoid_: Activation link, confirmation link
+
 **Remember token**:
 A long-lived credential that one device keeps so the user is signed back in after their session ends.
 _Avoid_: Remember-me cookie, persistent login, auth token
