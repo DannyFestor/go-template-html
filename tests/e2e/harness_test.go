@@ -27,7 +27,13 @@ const (
 type browserPage struct {
 	playwright.Page
 
+	origin string
 	errors *pageErrors
+}
+
+type testReporter interface {
+	require.TestingT
+	Helper()
 }
 
 type pageErrors struct {
@@ -58,19 +64,32 @@ func startApp(t *testing.T) *app {
 func (a *app) open(t *testing.T, path string) browserPage {
 	t.Helper()
 
-	page := newPage(t)
+	page := newPage(t, a.server.URL)
 
-	_, err := page.Goto(a.server.URL + path)
+	_, err := page.Goto(page.origin + path)
 	require.NoError(t, err)
 
 	return page
+}
+
+func (p browserPage) click(t testReporter, selector string) {
+	t.Helper()
+
+	require.NoError(t, p.Locator(selector).Click())
+}
+
+func (p browserPage) clickTo(t testReporter, selector, path string) {
+	t.Helper()
+
+	p.click(t, selector)
+	require.NoError(t, expect.Page(p.Page).ToHaveURL(p.origin+path))
 }
 
 func (a *app) factory() *factory.Factory {
 	return factory.New(a.Users, a.Passwords, factorySeed)
 }
 
-func newPage(t *testing.T) browserPage {
+func newPage(t *testing.T, origin string) browserPage {
 	t.Helper()
 
 	browserContext, err := browser.NewContext()
@@ -80,7 +99,7 @@ func newPage(t *testing.T) browserPage {
 	page, err := browserContext.NewPage()
 	require.NoError(t, err)
 
-	return browserPage{Page: page, errors: collectErrors(page)}
+	return browserPage{Page: page, origin: origin, errors: collectErrors(page)}
 }
 
 func collectErrors(page playwright.Page) *pageErrors {

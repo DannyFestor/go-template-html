@@ -3,7 +3,6 @@
 package e2e_test
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,9 +43,7 @@ func (p browserPage) logInWith(t *testing.T, email, password string) {
 
 	require.NoError(t, p.Locator("#email").Fill(email))
 	require.NoError(t, p.Locator("#password").Fill(password))
-	require.NoError(t, p.Locator(`form button[type="submit"]`).Click())
-
-	require.NoError(t, expect.Page(p.Page).ToHaveURL(regexp.MustCompile(`/dashboard$`)))
+	p.clickTo(t, `form button[type="submit"]`, route.Dashboard)
 }
 
 func TestAUserLogsInThroughTheBrowserAndLogsOutFromTheUserMenu(t *testing.T) {
@@ -60,10 +57,9 @@ func TestAUserLogsInThroughTheBrowserAndLogsOutFromTheUserMenu(t *testing.T) {
 
 	require.NoError(t, expect.Locator(page.Locator("#user-menu-name")).ToHaveText(ada.Name))
 
-	require.NoError(t, page.Locator("#user-menu-name").Click())
-	require.NoError(t, page.Locator(`form[action="/logout"] button`).Click())
+	page.click(t, "#user-menu-name")
+	page.clickTo(t, `form[action="/logout"] button`, route.Home)
 
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/$`)))
 	require.NoError(t, expect.Locator(page.Locator("main h1")).ToHaveText("Let's get started"))
 	assert.Empty(t, page.errors.list())
 }

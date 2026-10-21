@@ -22,10 +22,9 @@ func TestAUserResetsTheirForgottenPasswordThroughTheBrowserAndLogsIn(t *testing.
 	ada := running.createAda(t)
 	page := running.open(t, route.Login)
 
-	require.NoError(t, page.Locator(`a[href="/forgot-password"]`).Click())
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/forgot-password$`)))
+	page.clickTo(t, `a[href="/forgot-password"]`, route.ForgotPassword)
 	require.NoError(t, page.Locator("#email").Fill(ada.Email))
-	require.NoError(t, page.Locator(`form button[type="submit"]`).Click())
+	page.clickTo(t, `form button[type="submit"]`, route.ForgotPassword)
 	require.NoError(t, expect.Locator(page.Locator(`[role="status"]`)).
 		ToHaveText("If an account exists, a reset link has been sent."))
 
@@ -33,9 +32,8 @@ func TestAUserResetsTheirForgottenPasswordThroughTheBrowserAndLogsIn(t *testing.
 	require.NoError(t, err)
 	require.NoError(t, page.Locator("#password").Fill(newPassword))
 	require.NoError(t, page.Locator("#password_confirmation").Fill(newPassword))
-	require.NoError(t, page.Locator(`form button[type="submit"]`).Click())
+	page.clickTo(t, `form button[type="submit"]`, route.Login)
 
-	require.NoError(t, expect.Page(page.Page).ToHaveURL(regexp.MustCompile(`/login$`)))
 	require.NoError(t, expect.Locator(page.Locator(`[role="status"]`)).
 		ToHaveText("Your password has been reset. Log in with your new password."))
 
